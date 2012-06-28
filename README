@@ -1,0 +1,93 @@
+Simple UEFI boot loader which executes configured EFI images, where the
+default entry is selected by a configured pattern (glob) or an on-screen
+menu.
+
+Operates on the EFI System Partition (ESP) only. Configuration file fragments,
+kernels, initrds, other EFI images need to reside on the EFS. Linux kernels
+need to be built with CONFIG_EFI_STUB to be able to be directly executed as
+an EFI image.
+
+Reads simple and entirely generic boot loader configurion files; one
+file per boot loader entry to select from.
+
+Pressing the space (or most other) keys during bootup will show
+an on-screen menu with all configured loader entries to select from.
+Pressing enter on the selected entry loads and starts the EFI image.
+
+If no timeout is configured and no key pressed during bootup, the default
+entry is booted right away.
+
+The config files should be named like:
+  (ESP)/loader/entries/<vendor>-<release>.conf
+
+  $ cat /boot/loader/entries/fedora-3.5.4-1.fc18.x86_64.conf
+  title   Fedora 18 (3.5.4-1.fc17.x86_64)
+  linux   /fedora/vmlinuz-3.5.4-1.fc17.x86_64
+  initrd  /fedora/initrd-3.5.4-1.fc17.x86_64
+  options root=UUID=f8f83f73-df71-445c-87f7-31f70263b83b
+
+  $ cat /boot/loader/entries/custom-kernel.conf
+  title   My test Kernel - without initramfs
+  options root=PARTUUID=084917b7-8be2-4e86-838d-f771a9902e08
+  linux   /bzImage
+
+  $ cat /boot/loader/entries/redhat-grub.conf
+  title   GRUB
+  efi     /EFI/redhat/grub2-efi/grub.efi
+
+  $ cat /boot/loader/entries/zzz-efi-shell.conf
+  title   EFI Shell
+  efi     /EFI/shell/Shell.efi
+
+Paths are automatically converted from '/' to '\', and a leading '\' is
+added if needed.
+
+Loader options can be stored in:
+  (ESP)/loader/loader.conf
+
+  $ cat /boot/loader/loader.conf
+  timeout 10
+  default fedora-*
+
+The timeout is specified in seconds, the default is 0, which suppresses the
+menu. If a timeout is given, in the config file or in the EFI variable
+"LoaderConfigTimeout", the on-screen menu with the default entry selected is
+shown, and a timer counting downwards.
+
+Pressing the '+' or '-' key in the menu will set or clear a custom timeout
+value. The setting is stored persistently in the EFI variable "LoaderConfigTimeout".
+
+The default entry is selected by a pattern match on the configuration file
+names. The matched strings are basenames of the config files translated to
+lowercase and without the ".conf" suffix. The last matching entry in the
+sorted list is selected. If no match pattern is specified, the last entry in
+the list is selected.
+
+This will automatically select the latest Fedora kernel entry:
+   default fedora-*
+
+This will automatically select the latest Fedora 18 kernel:
+   default fedora-*.fc18.*
+
+Pressing the 'd' key in the menu will mark the selected entry as the default
+boot entry. The entry is identified by a leading '*'. Pressing the 'd' key again
+will clear the setting. The setting is stored persistently in the EFI variable
+"LoaderConfigDefault".
+
+Pressing 'o' allows to edit the options for this bootup.
+
+Pressing 'v' shows the loader and EFI version numbers.
+
+Pressing 'F1' will show the available keys.
+
+The EFI variable LoaderEntryOneShot= can be used to specify a loader entry
+for the next and only the next reboot. The variable will always be cleared
+directly after it is read.
+
+Before executing the selected image, the boot entry indentifier is stored in
+the EFI variable "LoaderEntrySelected" and available during runtime at:
+  /sys/firmware/efi/vars/LoaderEntrySelected-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f/
+
+The allocated random UUID 4a67b082-0a4c-41cf-b6c7-440b29bb8c4f is meant to be
+shared across tools which implement the config file layout, format, and the EFI
+variables.
