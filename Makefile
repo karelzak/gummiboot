@@ -47,4 +47,4 @@ test: gummiboot.efi
 	umount /boot2
 	echo 3 > /proc/sys/vm/drop_caches
 	@# run UEFI KVM
-	qemu-kvm -m 512 -L /home/kay/data/bios -snapshot /dev/sda
+	qemu-kvm -m 512 -L /usr/lib/qemu-bios -snapshot /dev/sda
