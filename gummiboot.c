@@ -507,7 +507,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 config->timeout_sec_efivar--;
                                 efivar_set_int(L"LoaderConfigTimeout", config->timeout_sec_efivar, TRUE);
                                 if (config->timeout_sec_efivar > 0)
-                                        status = PoolPrint(L"Timeout of %d sec permanently stored.",
+                                        status = PoolPrint(L"Menu timeout of %d sec permanently stored.",
                                                            config->timeout_sec_efivar);
                                 else
                                         status = StrDuplicate(L"Menu permanently disabled. "
@@ -515,7 +515,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         } else if (config->timeout_sec_efivar <= 0){
                                 config->timeout_sec_efivar = -1;
                                 efivar_set(L"LoaderConfigTimeout", NULL, TRUE);
-                                status = PoolPrint(L"Timeout permanantly set to the configured value of %d sec.",
+                                status = PoolPrint(L"Menu timeout cleared. The configured default value is %d sec.",
                                                    config->timeout_sec_config);
                         }
                         break;
@@ -523,7 +523,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         config->timeout_sec_efivar++;
                         efivar_set_int(L"LoaderConfigTimeout", config->timeout_sec_efivar, TRUE);
                         if (config->timeout_sec_efivar)
-                                status = PoolPrint(L"Timeout of %d sec permanently stored.",
+                                status = PoolPrint(L"Menu timeout of %d sec permanently stored.",
                                                    config->timeout_sec_efivar);
                         else
                                 status = StrDuplicate(L"Menu permanently disabled. "
@@ -534,10 +534,10 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 break;
                         if (config->no_initrd) {
                                 config->no_initrd = FALSE;
-                                status = StrDuplicate(L"Initrd enabled for this bootup.");
+                                status = StrDuplicate(L"Initrd loaded at this bootup.");
                         } else {
                                 config->no_initrd = TRUE;
-                                status = StrDuplicate(L"Initrd disabled for this bootup.");
+                                status = StrDuplicate(L"Initrd not loaded at this bootup.");
                         }
                         break;
                 case 'o':
@@ -550,7 +550,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
                         break;
                 case 'v':
-                        status = PoolPrint(L"gummiboot %d, EFI %d.%02d", VERSION,
+                        status = PoolPrint(L"gummiboot %d, UEFI %d.%02d", VERSION,
                                            ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
                         break;
                 }
