@@ -3,7 +3,7 @@ default entry is selected by a configured pattern (glob) or an on-screen
 menu.
 
 Operates on the EFI System Partition (ESP) only. Configuration file fragments,
-kernels, initrds, other EFI images need to reside on the EFS. Linux kernels
+kernels, initrds, other EFI images need to reside on the ESP. Linux kernels
 need to be built with CONFIG_EFI_STUB to be able to be directly executed as
 an EFI image.
 

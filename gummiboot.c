@@ -262,6 +262,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                                 line[i] = line[i-1];
                         line[first + cursor] = key.UnicodeChar;
                         len++;
+                        line[len] = '\0';
                         if (cursor+2 < x_max)
                                 cursor++;
                         else if (first + cursor < len)
