@@ -524,12 +524,12 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                 case 'd':
                         if (config->idx_default_efivar != idx_highlight) {
                                 /* store the selected entry in a persistent EFI variable */
-                                efivar_set(L"LoaderConfigDefault", config->entries[idx_highlight]->file, TRUE);
+                                efivar_set(L"LoaderEntryDefault", config->entries[idx_highlight]->file, TRUE);
                                 config->idx_default_efivar = idx_highlight;
                                 status = StrDuplicate(L"Default boot entry permanently stored.");
                         } else {
                                 /* clear the default entry EFI variable */
-                                efivar_set(L"LoaderConfigDefault", NULL, TRUE);
+                                efivar_set(L"LoaderEntryDefault", NULL, TRUE);
                                 config->idx_default_efivar = -1;
                                 status = StrDuplicate(L"Default boot entry cleared.");
                         }
@@ -999,7 +999,7 @@ static VOID config_default_entry_select(Config *config) {
          * the 'd' key in the loader selection menu, the entry is marked with
          * an '*'.
          */
-        err = efivar_get(L"LoaderConfigDefault", &var);
+        err = efivar_get(L"LoaderEntryDefault", &var);
         if (EFI_ERROR(err) == EFI_SUCCESS) {
                 BOOLEAN found = FALSE;
                 UINTN i;
