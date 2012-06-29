@@ -133,7 +133,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         CHAR16 *print;
         UINTN cursor;
         BOOLEAN exit;
-        BOOLEAN edit;
+        BOOLEAN enter;
 
         if (!line_in)
                 line_in = L"";
@@ -147,7 +147,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
 
         first = 0;
         cursor = 0;
-        edit = FALSE;
+        enter = FALSE;
         exit = FALSE;
         while (!exit) {
                 UINTN index;
@@ -263,10 +263,10 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                 case CHAR_LINEFEED:
                 case CHAR_CARRIAGE_RETURN:
                         if (StrCmp(line, line_in) != 0) {
-                                edit = TRUE;
                                 *line_out = line;
                                 line = NULL;
                         }
+                        enter = TRUE;
                         exit = TRUE;
                         break;
                 case CHAR_BACKSPACE:
@@ -316,7 +316,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
 
         uefi_call_wrapper(ST->ConOut->EnableCursor, 2, ST->ConOut, FALSE);
         FreePool(line);
-        return edit;
+        return enter;
 }
 
 static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
