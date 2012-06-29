@@ -74,7 +74,7 @@ boot entry. The entry is identified by a leading '*'. Pressing the 'd' key again
 will clear the setting. The setting is stored persistently in the EFI variable
 "LoaderConfigDefault".
 
-Pressing 'o' allows to edit the options for this bootup.
+Pressing 'e' allows to edit the options for this bootup.
 
 Pressing 'v' shows the loader and EFI version numbers.
 

@@ -497,7 +497,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 idx_highlight = config->entry_count-1;
                         break;
                 case SCAN_F1:
-                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (o)ptions, (i)nitrd, (v)ersion");
+                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (i)nitrd, (v)ersion");
                         break;
                 }
 
@@ -573,7 +573,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 status = StrDuplicate(L"Initrd not loaded at this bootup.");
                         }
                         break;
-                case 'o':
+                case 'e':
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
