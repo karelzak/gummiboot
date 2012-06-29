@@ -60,13 +60,13 @@ typedef struct {
 } Config;
 
 #ifdef __x86_64__
-static UINT64 tsc() {
+static UINT64 ticks_read() {
         UINT64 a, d;
         __asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
         return (d << 32) | a;
 }
 #else
-static UINT64 tsc() { return 0; }
+static UINT64 ticks_read() { return 0; }
 #endif
 
 static EFI_STATUS efivar_set(CHAR16 *name, CHAR16 *value, BOOLEAN persistent) {
@@ -121,7 +121,12 @@ static EFI_STATUS efivar_get_int(CHAR16 *name, INTN *i) {
 static VOID efivar_set_ticks(CHAR16 *name, UINT64 ticks) {
         CHAR16 str[32];
 
-        SPrint(str, 32, L"%ld", ticks ? ticks : tsc());
+        if (ticks == 0)
+                ticks = ticks_read();
+        if (ticks == 0)
+                return;
+
+        SPrint(str, 32, L"%ld", ticks ? ticks : ticks_read());
         efivar_set(name, str, FALSE);
 }
 
@@ -141,7 +146,7 @@ static void cursor_right(UINTN *cursor, UINTN *first, UINTN x_max, UINTN len)
                 (*first)++;
 }
 
-static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN y_pos) {
+static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN y_pos) {
         CHAR16 *line;
         UINTN size;
         UINTN len;
@@ -572,7 +577,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
-                        if (edit_line(config->entries[idx_highlight]->options, &config->options_edit, x_max, y_max-1))
+                        if (line_edit(config->entries[idx_highlight]->options, &config->options_edit, x_max, y_max-1))
                                 exit = TRUE;
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
@@ -1123,7 +1128,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         UINT64 ticks;
         BOOLEAN menu = FALSE;
 
-        ticks = tsc();
+        ticks = ticks_read();
         InitializeLib(image, sys_table);
         efivar_set_ticks(L"LoaderTicksInit", ticks);
 
