@@ -187,25 +187,28 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         }
                         continue;
                 case SCAN_UP:
-                        while(line[cursor] && line[cursor] == ' ') {
-                                cursor--;
-                                if (first > 0)
+                        while((first + cursor) && line[first + cursor] == ' ') {
+                                if (cursor > 0)
+                                        cursor--;
+                                else if (first > 0)
                                         first--;
                         }
-                        while(cursor && line[cursor] && line[cursor] != ' ') {
-                                cursor--;
-                                if (first > 0)
+                        while((first + cursor) && line[first + cursor] != ' ') {
+                                if (cursor > 0)
+                                        cursor--;
+                                else if (first > 0)
                                         first--;
                         }
-                        while(line[cursor] && line[cursor] == ' ') {
-                                cursor--;
-                                if (first > 0)
+                        while((first + cursor) && line[first + cursor] == ' ') {
+                                if (cursor > 0)
+                                        cursor--;
+                                else if (first > 0)
                                         first--;
                         }
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_DOWN:
-                        while(line[cursor] && line[cursor] == ' ') {
+                        while(line[first + cursor] && line[first + cursor] == ' ') {
                                 if (first + cursor == len)
                                         break;
                                 if (cursor+2 < x_max)
@@ -213,7 +216,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                                 else if (first + cursor < len)
                                         first++;
                         }
-                        while(line[cursor] && line[cursor] != ' ') {
+                        while(line[first + cursor] && line[first + cursor] != ' ') {
                                 if (first + cursor == len)
                                         break;
                                 if (cursor+2 < x_max)
@@ -221,7 +224,7 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                                 else if (first + cursor < len)
                                         first++;
                         }
-                        while(line[cursor] && line[cursor] == ' ') {
+                        while(line[first + cursor] && line[first + cursor] == ' ') {
                                 if (first + cursor == len)
                                         break;
                                 if (cursor+2 < x_max)
