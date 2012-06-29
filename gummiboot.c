@@ -176,17 +176,60 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         exit = TRUE;
                         break;
                 case SCAN_HOME:
-                case SCAN_UP:
                         cursor = 0;
                         first = 0;
                         continue;
                 case SCAN_END:
-                case SCAN_DOWN:
                         cursor = len;
                         if (cursor >= x_max) {
                                 cursor = x_max-2;
                                 first = len - (x_max-2);
                         }
+                        continue;
+                case SCAN_UP:
+                        while(line[cursor] && line[cursor] == ' ') {
+                                cursor--;
+                                if (first > 0)
+                                        first--;
+                        }
+                        while(cursor && line[cursor] && line[cursor] != ' ') {
+                                cursor--;
+                                if (first > 0)
+                                        first--;
+                        }
+                        while(line[cursor] && line[cursor] == ' ') {
+                                cursor--;
+                                if (first > 0)
+                                        first--;
+                        }
+                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
+                        continue;
+                case SCAN_DOWN:
+                        while(line[cursor] && line[cursor] == ' ') {
+                                if (first + cursor == len)
+                                        break;
+                                if (cursor+2 < x_max)
+                                        cursor++;
+                                else if (first + cursor < len)
+                                        first++;
+                        }
+                        while(line[cursor] && line[cursor] != ' ') {
+                                if (first + cursor == len)
+                                        break;
+                                if (cursor+2 < x_max)
+                                        cursor++;
+                                else if (first + cursor < len)
+                                        first++;
+                        }
+                        while(line[cursor] && line[cursor] == ' ') {
+                                if (first + cursor == len)
+                                        break;
+                                if (cursor+2 < x_max)
+                                        cursor++;
+                                else if (first + cursor < len)
+                                        first++;
+                        }
+                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_RIGHT:
                         if (first + cursor == len)
