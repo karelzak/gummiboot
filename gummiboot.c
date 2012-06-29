@@ -125,6 +125,22 @@ static VOID efivar_set_ticks(CHAR16 *name, UINT64 ticks) {
         efivar_set(name, str, FALSE);
 }
 
+static void cursor_left(UINTN *cursor, UINTN *first)
+{
+        if ((*cursor) > 0)
+                (*cursor)--;
+        else if ((*first) > 0)
+                (*first)--;
+}
+
+static void cursor_right(UINTN *cursor, UINTN *first, UINTN x_max, UINTN len)
+{
+        if ((*cursor)+2 < x_max)
+                (*cursor)++;
+        else if ((*first) + (*cursor) < len)
+                (*first)++;
+}
+
 static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN y_pos) {
         CHAR16 *line;
         UINTN size;
@@ -187,67 +203,33 @@ static BOOLEAN edit_line(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         }
                         continue;
                 case SCAN_UP:
-                        while((first + cursor) && line[first + cursor] == ' ') {
-                                if (cursor > 0)
-                                        cursor--;
-                                else if (first > 0)
-                                        first--;
-                        }
-                        while((first + cursor) && line[first + cursor] != ' ') {
-                                if (cursor > 0)
-                                        cursor--;
-                                else if (first > 0)
-                                        first--;
-                        }
-                        while((first + cursor) && line[first + cursor] == ' ') {
-                                if (cursor > 0)
-                                        cursor--;
-                                else if (first > 0)
-                                        first--;
-                        }
+                        while((first + cursor) && line[first + cursor] == ' ')
+                                cursor_left(&cursor, &first);
+                        while((first + cursor) && line[first + cursor] != ' ')
+                                cursor_left(&cursor, &first);
+                        while((first + cursor) && line[first + cursor] == ' ')
+                                cursor_left(&cursor, &first);
+                        if (first + cursor != len && first + cursor)
+                                cursor_right(&cursor, &first, x_max, len);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_DOWN:
-                        while(line[first + cursor] && line[first + cursor] == ' ') {
-                                if (first + cursor == len)
-                                        break;
-                                if (cursor+2 < x_max)
-                                        cursor++;
-                                else if (first + cursor < len)
-                                        first++;
-                        }
-                        while(line[first + cursor] && line[first + cursor] != ' ') {
-                                if (first + cursor == len)
-                                        break;
-                                if (cursor+2 < x_max)
-                                        cursor++;
-                                else if (first + cursor < len)
-                                        first++;
-                        }
-                        while(line[first + cursor] && line[first + cursor] == ' ') {
-                                if (first + cursor == len)
-                                        break;
-                                if (cursor+2 < x_max)
-                                        cursor++;
-                                else if (first + cursor < len)
-                                        first++;
-                        }
+                        while(line[first + cursor] && line[first + cursor] == ' ')
+                                cursor_right(&cursor, &first, x_max, len);
+                        while(line[first + cursor] && line[first + cursor] != ' ')
+                                cursor_right(&cursor, &first, x_max, len);
+                        while(line[first + cursor] && line[first + cursor] == ' ')
+                                cursor_right(&cursor, &first, x_max, len);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_RIGHT:
                         if (first + cursor == len)
                                 continue;
-                        if (cursor+2 < x_max)
-                                cursor++;
-                        else if (first + cursor < len)
-                                first++;
+                        cursor_right(&cursor, &first, x_max, len);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_LEFT:
-                        if (cursor > 0)
-                                cursor--;
-                        else if (first > 0)
-                                first--;
+                        cursor_left(&cursor, &first);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, cursor, y_pos);
                         continue;
                 case SCAN_DELETE:
