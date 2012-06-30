@@ -41,10 +41,10 @@ clean:
 
 test: gummiboot.efi
 	@# UUID=677B-ECF2 /boot2 vfat noauto,x-systemd.automount,x-gvfs-hide 1 3
-	cp -v gummiboot.efi /boot2/EFI/gummiboot/
+	cp -v gummiboot.efi /boot/EFI/gummiboot/
 	@# unmount to sync EFI partition to disk
 	sync
-	umount /boot2
+	umount /boot
 	echo 3 > /proc/sys/vm/drop_caches
-	@# run UEFI KVM
+	@# run QEMU with UEFI firmware
 	qemu-kvm -m 512 -L /usr/lib/qemu-bios -snapshot /dev/sda
