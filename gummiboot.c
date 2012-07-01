@@ -548,14 +548,20 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         } else if (config->timeout_sec_efivar <= 0){
                                 config->timeout_sec_efivar = -1;
                                 efivar_set(L"LoaderConfigTimeout", NULL, TRUE);
-                                status = PoolPrint(L"Menu timeout cleared. The configured default value is %d sec.",
-                                                   config->timeout_sec_config);
+                                if (config->timeout_sec_config > 0)
+                                        status = PoolPrint(L"Menu timeout of %d sec defined by configuration file.",
+                                                           config->timeout_sec_config);
+                                else
+                                        status = StrDuplicate(L"Menu permanently disabled. "
+                                                              "Hold down key at bootup to show menu.");
                         }
                         break;
                 case '+':
+                        if (config->timeout_sec_efivar == -1 && config->timeout_sec_config == 0)
+                                config->timeout_sec_efivar++;
                         config->timeout_sec_efivar++;
                         efivar_set_int(L"LoaderConfigTimeout", config->timeout_sec_efivar, TRUE);
-                        if (config->timeout_sec_efivar)
+                        if (config->timeout_sec_efivar > 0)
                                 status = PoolPrint(L"Menu timeout of %d sec permanently stored.",
                                                    config->timeout_sec_efivar);
                         else
