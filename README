@@ -49,6 +49,9 @@ Loader options can be stored in:
   timeout 10
   default fedora-*
 
+Configuration files are expected to be 7 bit ASCII or encoded in valid utf8.
+Invalid utf8 sequences are silently skipped during the conversion.
+
 The timeout is specified in seconds, the default is 0, which suppresses the
 menu. If a timeout is given, in the config file or in the EFI variable
 "LoaderConfigTimeout", the on-screen menu with the default entry selected is

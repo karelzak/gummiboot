@@ -675,7 +675,60 @@ static INTN str_verscmp(CHAR16 *s1, CHAR16 *s2)
         return StrCmp(os1, os2);
 }
 
+static INTN utf8_to_16(CHAR8 *stra, CHAR16 *c) {
+        CHAR16 unichar;
+        UINTN len;
+        UINTN i;
+
+        if (stra[0] < 0x80)
+                len = 1;
+        else if ((stra[0] & 0xe0) == 0xc0)
+                len = 2;
+        else if ((stra[0] & 0xf0) == 0xe0)
+                len = 3;
+        else if ((stra[0] & 0xf8) == 0xf0)
+                len = 4;
+        else if ((stra[0] & 0xfc) == 0xf8)
+                len = 5;
+        else if ((stra[0] & 0xfe) == 0xfc)
+                len = 6;
+        else
+                return -1;
+
+        switch (len) {
+        case 1:
+                unichar = stra[0];
+                break;
+        case 2:
+                unichar = stra[0] & 0x1f;
+                break;
+        case 3:
+                unichar = stra[0] & 0x0f;
+                break;
+        case 4:
+                unichar = stra[0] & 0x07;
+                break;
+        case 5:
+                unichar = stra[0] & 0x03;
+                break;
+        case 6:
+                unichar = stra[0] & 0x01;
+                break;
+        }
+
+        for (i = 1; i < len; i++) {
+                if ((stra[i] & 0xc0) != 0x80)
+                        return -1;
+                unichar <<= 6;
+                unichar |= stra[i] & 0x3f;
+        }
+
+        *c = unichar;
+        return len;
+}
+
 CHAR16 *stra_to_str(CHAR8 *stra) {
+        UINTN strlen;
         UINTN len;
         UINTN i;
         CHAR16 *str;
@@ -683,10 +736,22 @@ CHAR16 *stra_to_str(CHAR8 *stra) {
         len = strlena(stra);
         str = AllocatePool((len + 1) * sizeof(CHAR16));
 
-        for (i = 0; i < len; i++)
-                str[i] = stra[i];
-        str[i] = '\0';
+        strlen = 0;
+        i = 0;
+        while (i < len) {
+                INTN utf8len;
 
+                utf8len = utf8_to_16(stra + i, str + strlen);
+                if (utf8len <= 0) {
+                        /* invalid utf8 sequence, skip the garbage */
+                        i++;
+                        continue;
+                }
+
+                strlen++;
+                i += utf8len;
+        }
+        str[strlen] = '\0';
         return str;
 }
 
@@ -701,17 +766,29 @@ CHAR16 *stra_to_path(CHAR8 *stra) {
 
         str[0] = '\\';
         strlen = 1;
-        for (i = 0; i < len; i++) {
-                if (stra[i] == '/' || stra[i] == '\\') {
-                        if (str[strlen-1] == '\\')
-                                continue;
-                        str[strlen++] = '\\';
+        i = 0;
+        while (i < len) {
+                INTN utf8len;
+
+                utf8len = utf8_to_16(stra + i, str + strlen);
+                if (utf8len <= 0) {
+                        /* invalid utf8 sequence, skip the garbage */
+                        i++;
                         continue;
                 }
-                str[strlen++] = stra[i];
+
+                if (str[strlen] == '/')
+                        str[strlen] = '\\';
+                if (str[strlen] == '\\' && str[strlen-1] == '\\') {
+                        /* skip double slashes */
+                        i += utf8len;
+                        continue;
+                }
+
+                strlen++;
+                i += utf8len;
         }
         str[strlen] = '\0';
-
         return str;
 }
 
