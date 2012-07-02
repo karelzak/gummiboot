@@ -1237,8 +1237,10 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_load(&config, root_dir, loaded_image_path);
         FreePool(loaded_image_path);
 
+#ifdef __x86_64__
         /* add fallback entry to the end of the list */
         config_entry_add_loader(&config, root_dir, L"fallback", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+#endif
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
         config_default_entry_select(&config);
