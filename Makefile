@@ -15,7 +15,14 @@ CFLAGS = \
 	-fpic \
 	-fshort-wchar \
 	-ffreestanding \
+	-nostdlib \
+	-nostdinc \
+	-fno-stack-protector
+
+ifeq ($(ARCH),x86_64)
+CFLAGS += \
 	-DEFI_FUNCTION_WRAPPER
+endif
 
 LDFLAGS = -T $(LIBDIR)/gnuefi/elf_$(ARCH)_efi.lds \
 	-shared \
@@ -30,11 +37,13 @@ LDFLAGS = -T $(LIBDIR)/gnuefi/elf_$(ARCH)_efi.lds \
 
 gummiboot.efi: gummiboot.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic \
-	  -j .dynsym -j .rel -j .rela -j .reloc \
+	  -j .dynsym -j .rel -j .rela -j .reloc -j .eh_frame \
 	  --target=efi-app-$(ARCH) $< $@
 
 gummiboot.so: gummiboot.o
 	$(LD) $(LDFLAGS) gummiboot.o -o $@ -lefi -lgnuefi
+
+gummiboot.o: gummiboot.c Makefile
 
 clean:
 	rm -f gummiboot.o gummiboot.so gummiboot.efi
