@@ -1,35 +1,47 @@
-Simple UEFI boot loader which executes configured EFI images, where the
-default entry is selected by a configured pattern (glob) or an on-screen
-menu.
+gummiboot Simple UEFI boot manager
 
-Operates on the EFI System Partition (ESP) only. Configuration file fragments,
-kernels, initrds, other EFI images need to reside on the ESP. Linux kernels
-need to be built with CONFIG_EFI_STUB to be able to be directly executed as
-an EFI image.
+gummiboot executes EFI images. The default entry is selected by a configured
+pattern (glob) or an on-screen menu.
 
-Reads simple and entirely generic boot loader configurion files; one
-file per boot loader entry to select from.
+gummiboot operates on the EFI System Partition (ESP) only. Configuration
+file fragments, kernels, initrds, other EFI images need to reside on the
+ESP. Linux kernels must be built with CONFIG_EFI_STUB to be able to be
+directly executed as an EFI image.
 
-Pressing the space (or most other) keys during bootup will show
-an on-screen menu with all configured loader entries to select from.
-Pressing enter on the selected entry loads and starts the EFI image.
+gummiboot reads simple and entirely generic configurion files; one file
+per boot entry to select from.
+
+Pressing Space (or most other) keys during bootup will show an on-screen
+menu with all configured entries to select from. Pressing enter on the
+selected entry loads and starts the EFI image.
 
 If no timeout is configured and no key pressed during bootup, the default
 entry is booted right away.
 
 The config files should be named like:
-  (ESP)/loader/entries/<vendor>-<release>.conf
+  (ESP)/loader/entries/<vendor>-<release>-<128bit-machine-id>.conf
 
-  $ cat /boot/loader/entries/fedora-3.5.4-1.fc18.x86_64.conf
-  title   Fedora 18 (3.5.4-1.fc17.x86_64)
-  linux   /fedora/vmlinuz-3.5.4-1.fc17.x86_64
-  initrd  /fedora/initrd-3.5.4-1.fc17.x86_64
+The vendor should match the vendor string used in the EFI subdirectory.
+
+To be able to share the ESP with multiple installations of the same
+system version, it is recommended to append the 128bit machine-id to the
+generated config files, and to include the hostname in the title.
+
+  $ cat /boot/loader/entries/fedora-3.5.4-1.fc18.x86_64-6a9857a393724b7a981ebb5b8495b9ea.conf
+  title   Fedora 18 (mars) (3.5.4-1.fc17.x86_64)
+  linux   /fedora/vmlinuz-3.5.4-1.fc17.x86_64-6a9857a393724b7a981ebb5b8495b9ea
+  initrd  /fedora/initrd-3.5.4-1.fc17.x86_64-6a9857a393724b7a981ebb5b8495b9ea
   options root=UUID=f8f83f73-df71-445c-87f7-31f70263b83b
 
   $ cat /boot/loader/entries/custom-kernel.conf
-  title   My test Kernel - without initramfs
-  options root=PARTUUID=084917b7-8be2-4e86-838d-f771a9902e08
-  linux   /bzImage
+  title   My test kernel
+  efi     /bzImage
+  options initrd=/initrd.img root=PARTUUID=084917b7-8be2-4e86-838d-f771a9902e08
+
+  $ cat /boot/loader/entries/custom-kernel.conf
+  title   My test kernel with initrd
+  efi     /bzImage
+  options initrd=/initrd.img root=PARTUUID=084917b7-8be2-4e86-838d-f771a9902e08
 
   $ cat /boot/loader/entries/redhat-grub.conf
   title   GRUB
@@ -79,11 +91,11 @@ will clear the setting. The setting is stored persistently in the EFI variable
 
 Pressing 'e' allows to edit the options for this bootup.
 
-Pressing 'v' shows the loader and EFI version numbers.
+Pressing 'v' shows the gummiboot and EFI version numbers.
 
 Pressing 'F1' will show the available keys.
 
-The EFI variable LoaderEntryOneShot= can be used to specify a loader entry
+The EFI variable LoaderEntryOneShot= can be used to specify the entry
 for the next and only the next reboot. The variable will always be cleared
 directly after it is read.
 

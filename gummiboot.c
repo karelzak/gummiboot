@@ -41,7 +41,6 @@ typedef struct {
         CHAR16 *title;
         enum loader_type type;
         CHAR16 *loader;
-        CHAR16 *initrd;
         CHAR16 *options;
         BOOLEAN no_default;
 } ConfigEntry;
@@ -56,7 +55,6 @@ typedef struct {
         INTN timeout_sec_efivar;
         CHAR16 *entry_default_pattern;
         CHAR16 *options_edit;
-        BOOLEAN no_initrd;
 } Config;
 
 #ifdef __x86_64__
@@ -497,7 +495,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 idx_highlight = config->entry_count-1;
                         break;
                 case SCAN_F1:
-                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (i)nitrd, (v)ersion");
+                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion");
                         break;
                 }
 
@@ -567,17 +565,6 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                         else
                                 status = StrDuplicate(L"Menu permanently disabled. "
                                                       "Hold down key at bootup to show menu.");
-                        break;
-                case 'i':
-                        if (!config->entries[idx_highlight]->initrd)
-                                break;
-                        if (config->no_initrd) {
-                                config->no_initrd = FALSE;
-                                status = StrDuplicate(L"Initrd loaded at this bootup.");
-                        } else {
-                                config->no_initrd = TRUE;
-                                status = StrDuplicate(L"Initrd not loaded at this bootup.");
-                        }
                         break;
                 case 'e':
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
@@ -886,17 +873,21 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         CHAR8 *line;
         CHAR8 *key, *value;
         UINTN len;
+        CHAR16 *initrd;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
+        initrd = NULL;
 
         line = content;
         while ((line = line_get_key_value(line, &key, &value))) {
                 if (strcmpa((CHAR8 *)"title", key) == 0) {
+                        FreePool(entry->title);
                         entry->title = stra_to_str(value);
                         continue;
                 }
 
                 if (strcmpa((CHAR8 *)"linux", key) == 0) {
+                        FreePool(entry->loader);
                         entry->type = LOADER_LINUX;
                         entry->loader = stra_to_path(value);
                         continue;
@@ -904,6 +895,7 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
 
                 if (strcmpa((CHAR8 *)"efi", key) == 0) {
                         entry->type = LOADER_EFI;
+                        FreePool(entry->loader);
                         entry->loader = stra_to_path(value);
                         /* do not add an entry for ourselves */
                         if (StrCmp(entry->loader, loaded_image_path) == 0) {
@@ -914,12 +906,36 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
                 }
 
                 if (strcmpa((CHAR8 *)"initrd", key) == 0) {
-                        entry->initrd = stra_to_path(value);
+                        CHAR16 *new;
+
+                        new = stra_to_path(value);
+                        if (initrd) {
+                                CHAR16 *s;
+
+                                s = PoolPrint(L"%s initrd=%s", initrd, new);
+                                FreePool(initrd);
+                                initrd = s;
+                        } else
+                                initrd = PoolPrint(L"initrd=%s", new);
+                        FreePool(new);
                         continue;
                 }
 
                 if (strcmpa((CHAR8 *)"options", key) == 0) {
-                        entry->options = stra_to_str(value);
+                        CHAR16 *new;
+
+                        new = stra_to_str(value);
+                        if (entry->options) {
+                                CHAR16 *s;
+
+                                s = PoolPrint(L"%s %s", entry->options, new);
+                                FreePool(entry->options);
+                                entry->options = s;
+                        } else {
+                                entry->options = new;
+                                new = NULL;
+                        }
+                        FreePool(new);
                         continue;
                 }
         }
@@ -927,11 +943,26 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         if (entry->type == LOADER_UNDEFINED) {
                 FreePool(entry->title);
                 FreePool(entry->loader);
-                FreePool(entry->initrd);
                 FreePool(entry->options);
+                FreePool(initrd);
                 FreePool(entry);
                 return;
         }
+
+        /* add initrd= to options */
+        if (entry->type == LOADER_LINUX && initrd) {
+                if (entry->options) {
+                        CHAR16 *s;
+
+                        s = PoolPrint(L"%s %s", initrd, entry->options);
+                        FreePool(entry->options);
+                        entry->options = s;
+                } else {
+                        entry->options = initrd;
+                        initrd = NULL;
+                }
+        }
+        FreePool(initrd);
 
         entry->file = StrDuplicate(file);
         len = StrLen(entry->file);
@@ -1152,7 +1183,6 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
         EFI_STATUS err;
         EFI_HANDLE image;
         EFI_DEVICE_PATH *path;
-        EFI_LOADED_IMAGE *loaded_image;
         CHAR16 *options;
 
         path = FileDevicePath(parent_loaded_image->DeviceHandle, entry->loader);
@@ -1175,7 +1205,9 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
                 options = entry->options;
         else
                 options = NULL;
-        if (options || (entry->initrd && !config->no_initrd)) {
+        if (options) {
+                EFI_LOADED_IMAGE *loaded_image;
+
                 err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
                                         parent_image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
                 if (EFI_ERROR(err)) {
@@ -1183,13 +1215,7 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
                         uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
                         goto out_unload;
                 }
-                if (entry->type == LOADER_LINUX && entry->initrd && !config->no_initrd) {
-                        if (options)
-                                loaded_image->LoadOptions = PoolPrint(L"initrd=%s %s", entry->initrd, options);
-                        else
-                                loaded_image->LoadOptions = PoolPrint(L"initrd=%s", entry->initrd);
-                } else
-                        loaded_image->LoadOptions = options;
+                loaded_image->LoadOptions = options;
                 loaded_image->LoadOptionsSize = (StrLen(loaded_image->LoadOptions)+1) * sizeof(CHAR16);
         }
 
