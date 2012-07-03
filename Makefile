@@ -11,13 +11,13 @@ CPPFLAGS = \
 CFLAGS = \
 	-DVERSION=$(VERSION) \
 	-Wall \
-	-g -O0 \
+	-ggdb -O0 \
 	-fpic \
 	-fshort-wchar \
-	-ffreestanding \
-	-nostdlib \
 	-nostdinc \
+	-ffreestanding \
 	-fno-stack-protector
+# -mno-red-zone
 
 ifeq ($(ARCH),x86_64)
 CFLAGS += \
@@ -30,7 +30,8 @@ LDFLAGS = -T $(LIBDIR)/gnuefi/elf_$(ARCH)_efi.lds \
 	-nostdlib \
 	-znocombreloc \
 	-L $(LIBDIR) \
-	$(LIBDIR)/gnuefi/crt0-efi-$(ARCH).o
+	$(LIBDIR)/gnuefi/crt0-efi-$(ARCH).o \
+	$(shell $(CC) -print-libgcc-file-name)
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
