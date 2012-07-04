@@ -42,7 +42,7 @@ typedef struct {
         enum loader_type type;
         CHAR16 *loader;
         CHAR16 *options;
-        BOOLEAN no_default;
+        BOOLEAN no_autoselect;
 } ConfigEntry;
 
 typedef struct {
@@ -1145,7 +1145,7 @@ static VOID config_default_entry_select(Config *config) {
                 for (i = config->entry_count-1; i >= 0; i--) {
                         if (!config->entries[i]->file)
                                 continue;
-                        if (config->entries[i]->no_default)
+                        if (config->entries[i]->no_autoselect)
                                 continue;
                         if (MetaiMatch(config->entries[i]->file, config->entry_default_pattern)) {
                                 config->idx_default = i;
@@ -1180,7 +1180,7 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
         entry->loader = StrDuplicate(loader);
         if (file)
                 entry->file = StrDuplicate(file);
-        entry->no_default = TRUE;
+        entry->no_autoselect = TRUE;
         config_add_entry(config, entry);
 }
 
@@ -1269,11 +1269,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         /* scan "\loader\entries\*.conf" files */
         config_load(&config, root_dir, loaded_image_path);
 
-        /* if we find some well-known loader, add them to the end of the list */
+        /* if we find some well-known loaders, add them to the end of the list */
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"windows", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
+                                L"loader-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"fallback", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+                                L"loader-bootx86", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
         FreePool(loaded_image_path);
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
