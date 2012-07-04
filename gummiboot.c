@@ -897,6 +897,7 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
                         entry->type = LOADER_EFI;
                         FreePool(entry->loader);
                         entry->loader = stra_to_path(value);
+
                         /* do not add an entry for ourselves */
                         if (StrCmp(entry->loader, loaded_image_path) == 0) {
                                 entry->type = LOADER_UNDEFINED;
@@ -1158,7 +1159,8 @@ static VOID config_default_entry_select(Config *config) {
                 config->idx_default = config->entry_count-1;
 }
 
-static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
+static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
+                                    CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
         EFI_FILE_HANDLE handle;
         EFI_STATUS err;
         ConfigEntry *entry;
@@ -1168,6 +1170,10 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
         if (EFI_ERROR(err))
                 return;
         uefi_call_wrapper(handle->Close, 1, handle);
+
+        /* do not add an entry for ourselves */
+        if (StrCmp(loader, loaded_image_path) == 0)
+                return;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
         entry->title = StrDuplicate(title);
@@ -1188,14 +1194,14 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
         path = FileDevicePath(parent_loaded_image->DeviceHandle, entry->loader);
         if (!path) {
                 Print(L"Error getting device path.");
-                uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                 return EFI_INVALID_PARAMETER;
         }
 
         err = uefi_call_wrapper(BS->LoadImage, 6, FALSE, parent_image, path, NULL, 0, &image);
         if (EFI_ERROR(err)) {
                 Print(L"Error loading %s: %r", entry->loader, err);
-                uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                 goto out;
         }
 
@@ -1212,7 +1218,7 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
                                         parent_image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
                 if (EFI_ERROR(err)) {
                         Print(L"Error getting LoadedImageProtocol handle: %r", err);
-                        uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                        uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                         goto out_unload;
                 }
                 loaded_image->LoadOptions = options;
@@ -1245,28 +1251,30 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                                 image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(err)) {
                 Print(L"Error getting a LoadedImageProtocol handle: %r ", err);
-                uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                 return err;
         }
 
         root_dir = LibOpenRoot(loaded_image->DeviceHandle);
         if (!root_dir) {
                 Print(L"Unable to open root directory: %r ", err);
-                uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                 return EFI_LOAD_ERROR;
         }
 
         ZeroMem(&config, sizeof(Config));
 
-        /* scan "\loader\entries\*.conf" files */
         loaded_image_path = DevicePathToStr(loaded_image->FilePath);
-        config_load(&config, root_dir, loaded_image_path);
-        FreePool(loaded_image_path);
 
-#ifdef __x86_64__
-        /* add fallback entry to the end of the list */
-        config_entry_add_loader(&config, root_dir, L"fallback", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
-#endif
+        /* scan "\loader\entries\*.conf" files */
+        config_load(&config, root_dir, loaded_image_path);
+
+        /* if we find some well-known loader, add them to the end of the list */
+        config_entry_add_loader(&config, root_dir, loaded_image_path,
+                                L"windows", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
+        config_entry_add_loader(&config, root_dir, loaded_image_path,
+                                L"fallback", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+        FreePool(loaded_image_path);
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
         config_default_entry_select(&config);
@@ -1293,7 +1301,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 err = efivar_set(L"LoaderEntrySelected",  entry->file, FALSE);
                 if (EFI_ERROR(err)) {
                        Print(L"Error storing LoaderEntrySelected variable: %r ", err);
-                       uefi_call_wrapper(BS->Stall, 1, 1000 * 1000);
+                       uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
                 }
 
                 image_start(image, loaded_image, &config, entry);
