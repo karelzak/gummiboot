@@ -307,7 +307,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         return enter;
 }
 
-static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
+static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
         EFI_STATUS err;
         INTN visible_max;
         INTN idx_highlight;
@@ -325,6 +325,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
         CHAR16 *clearline;
         INTN timeout_remain;
         BOOLEAN exit = FALSE;
+        BOOLEAN run = TRUE;
 
         uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
         uefi_call_wrapper(ST->ConOut->EnableCursor, 2, ST->ConOut, FALSE);
@@ -495,7 +496,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 idx_highlight = config->entry_count-1;
                         break;
                 case SCAN_F1:
-                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion");
+                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion (q)uit");
                         break;
                 }
 
@@ -518,6 +519,10 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
                 case CHAR_LINEFEED:
                 case CHAR_CARRIAGE_RETURN:
                         exit = TRUE;
+                        break;
+                case 'q':
+                        exit = TRUE;
+                        run = FALSE;
                         break;
                 case 'd':
                         if (config->idx_default_efivar != idx_highlight) {
@@ -590,6 +595,7 @@ static VOID menu_run(Config *config, ConfigEntry **chosen_entry) {
 
         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_WHITE|EFI_BACKGROUND_BLACK);
         uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+        return run;
 }
 
 static VOID config_add_entry(Config *config, ConfigEntry *entry) {
@@ -625,11 +631,9 @@ static UINTN c_order(CHAR16 c)
 
 static INTN str_verscmp(CHAR16 *s1, CHAR16 *s2)
 {
-        CHAR16 *os1;
-        CHAR16 *os2;
+        CHAR16 *os1 = s1;
+        CHAR16 *os2 = s2;
 
-        os1 = s1;
-        os2 = s2;
         while (*s1 || *s2) {
                 INTN first;
 
@@ -873,10 +877,9 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         CHAR8 *line;
         CHAR8 *key, *value;
         UINTN len;
-        CHAR16 *initrd;
+        CHAR16 *initrd = NULL;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
-        initrd = NULL;
 
         line = content;
         while ((line = line_get_key_value(line, &key, &value))) {
@@ -1294,7 +1297,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 entry = config.entries[config.idx_default];
                 if (menu) {
                         efivar_set_ticks(L"LoaderTicksStartMenu", 0);
-                        menu_run(&config, &entry);
+                        if (!menu_run(&config, &entry))
+                                break;
                 }
 
                 /* export the selected boot entry to the system */
