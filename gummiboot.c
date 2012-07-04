@@ -614,6 +614,12 @@ static VOID config_add_entry(Config *config, ConfigEntry *entry) {
         config->entries[config->entry_count++] = entry;
 }
 
+static VOID config_entry_free(ConfigEntry *entry) {
+        FreePool(entry->title);
+        FreePool(entry->loader);
+        FreePool(entry->options);
+}
+
 static BOOLEAN is_digit(CHAR16 c)
 {
         return (c >= '0') && (c <= '9');
@@ -947,9 +953,7 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         }
 
         if (entry->type == LOADER_UNDEFINED) {
-                FreePool(entry->title);
-                FreePool(entry->loader);
-                FreePool(entry->options);
+                config_entry_free(entry);
                 FreePool(initrd);
                 FreePool(entry);
                 return;
@@ -1239,6 +1243,16 @@ out:
         return err;
 }
 
+static VOID config_free(Config *config) {
+        UINTN i;
+
+        for (i = 0; i < config->entry_count; i++)
+                config_entry_free(config->entries[i]);
+        FreePool(config->entries);
+        FreePool(config->entry_default_pattern);
+        FreePool(config->options_edit);
+}
+
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         EFI_LOADED_IMAGE *loaded_image;
         EFI_FILE *root_dir;
@@ -1316,6 +1330,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 config.timeout_sec = 0;
         }
 
+        config_free(&config);
         uefi_call_wrapper(root_dir->Close, 1, root_dir);
         uefi_call_wrapper(BS->CloseProtocol, 4, image, &LoadedImageProtocol, image, NULL);
         return EFI_SUCCESS;
