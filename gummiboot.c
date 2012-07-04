@@ -581,8 +581,10 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
                         break;
                 case 'v':
-                        status = PoolPrint(L"gummiboot %d, UEFI %d.%02d", VERSION,
-                                           ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
+                        status = PoolPrint(L"gummiboot %d, UEFI %d.%02d, %s %d.%02d",
+                                           VERSION,
+                                           ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff,
+                                           ST->FirmwareVendor, ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
                         break;
                 }
         }
