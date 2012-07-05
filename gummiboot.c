@@ -1257,6 +1257,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         EFI_LOADED_IMAGE *loaded_image;
         EFI_FILE *root_dir;
         CHAR16 *loaded_image_path;
+        EFI_DEVICE_PATH *device_path;
         EFI_STATUS err;
         Config config;
         UINT64 ticks;
@@ -1274,6 +1275,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 return err;
         }
 
+        /* export the device path this image is started from */
+        device_path = DevicePathFromHandle(loaded_image->DeviceHandle);
+        if (device_path)
+                efivar_set(L"LoaderDevicePath", DevicePathToStr(device_path), FALSE);
+
         root_dir = LibOpenRoot(loaded_image->DeviceHandle);
         if (!root_dir) {
                 Print(L"Unable to open root directory: %r ", err);
@@ -1281,11 +1287,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 return EFI_LOAD_ERROR;
         }
 
-        ZeroMem(&config, sizeof(Config));
-
+        /* the filesystem path to this image, to prevent adding ourselves to the menu */
         loaded_image_path = DevicePathToStr(loaded_image->FilePath);
 
         /* scan "\loader\entries\*.conf" files */
+        ZeroMem(&config, sizeof(Config));
         config_load(&config, root_dir, loaded_image_path);
 
         /* if we find some well-known loaders, add them to the end of the list */
