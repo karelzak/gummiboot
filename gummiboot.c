@@ -1278,7 +1278,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         /* export the device path this image is started from */
         device_path = DevicePathFromHandle(loaded_image->DeviceHandle);
         if (device_path)
-                efivar_set(L"LoaderDevicePath", DevicePathToStr(device_path), FALSE);
+                efivar_set(L"LoaderDeviceIdentifier", DevicePathToStr(device_path), FALSE);
 
         root_dir = LibOpenRoot(loaded_image->DeviceHandle);
         if (!root_dir) {
