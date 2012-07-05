@@ -1234,7 +1234,7 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_
                 loaded_image->LoadOptionsSize = (StrLen(loaded_image->LoadOptions)+1) * sizeof(CHAR16);
         }
 
-        efivar_set_ticks(L"LoaderTicksStartImage", 0);
+        efivar_set_ticks(L"LoaderTicksExec", 0);
         err = uefi_call_wrapper(BS->StartImage, 3, image, NULL, NULL);
 out_unload:
         uefi_call_wrapper(BS->UnloadImage, 1, image);
