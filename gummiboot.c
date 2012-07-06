@@ -307,6 +307,70 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         return enter;
 }
 
+static VOID dump_status(Config *config) {
+        UINTN index;
+        INTN i;
+        CHAR16 *s;
+
+        uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
+        uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+
+        Print(L"gummiboot version:      %d\n", VERSION);
+        Print(L"UEFI version:           %d.%02d\n", ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
+        Print(L"firmware vendor:        %s\n", ST->FirmwareVendor);
+        Print(L"firmware version:       %d.%02d\n", ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
+        Print(L"\n");
+
+        Print(L"timeout:                %d\n", config->timeout_sec);
+        if (config->timeout_sec_efivar >= 0)
+                Print(L"timeout (EFI var):      %d\n", config->timeout_sec_efivar);
+        Print(L"timeout (config):       %d\n", config->timeout_sec_config);
+        Print(L"default pattern:        '%s'\n", config->entry_default_pattern);
+        Print(L"\n");
+
+        Print(L"config entry count:     %d\n", config->entry_count);
+        Print(L"entry selected idx:     %d\n", config->idx_default);
+        if (config->idx_default_efivar >= 0)
+                Print(L"entry EFI var idx:      %d\n", config->idx_default_efivar);
+        Print(L"\n");
+
+        if (efivar_get_int(L"LoaderConfigTimeout", &i) == EFI_SUCCESS)
+                Print(L"LoaderConfigTimeout:    %d\n", i);
+        if (efivar_get(L"LoaderEntryOneShot", &s) == EFI_SUCCESS) {
+                Print(L"LoaderEntryOneShot:     %s\n", s);
+                FreePool(s);
+        }
+        if (efivar_get(L"LoaderDeviceIdentifier", &s) == EFI_SUCCESS) {
+                Print(L"LoaderDeviceIdentifier: %s\n", s);
+                FreePool(s);
+        }
+        if (efivar_get(L"LoaderEntryDefault", &s) == EFI_SUCCESS) {
+                Print(L"LoaderEntryDefault:     %s\n", s);
+                FreePool(s);
+        }
+        Print(L"\n--- press key ---\n\n");
+        uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ST->ConIn->WaitForKey, &index);
+        uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
+
+        for (i = 0; i < config->entry_count; i++) {
+                ConfigEntry *entry;
+
+                entry = config->entries[i];
+                Print(L"config entry:           %d/%d\n", i, config->entry_count);
+                Print(L"file                    '%s'\n", entry->file);
+                Print(L"title                   '%s'\n", entry->title);
+                Print(L"loader                  '%s'\n", entry->loader);
+                if (entry->options)
+                        Print(L"options                 '%s'\n", entry->options);
+                Print(L"auto-select             %s\n", entry->no_autoselect ? L"no" : L"yes");
+                Print(L"\n--- press key ---\n\n");
+                uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ST->ConIn->WaitForKey, &index);
+                uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
+        }
+
+        uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
+}
+
 static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
         EFI_STATUS err;
         INTN visible_max;
@@ -496,7 +560,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 idx_highlight = config->entry_count-1;
                         break;
                 case SCAN_F1:
-                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion (q)uit");
+                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion (q)uit (*)debug");
                         break;
                 }
 
@@ -585,6 +649,10 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                                            VERSION,
                                            ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff,
                                            ST->FirmwareVendor, ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
+                        break;
+                case '*':
+                        dump_status(config);
+                        refresh = TRUE;
                         break;
                 }
         }
