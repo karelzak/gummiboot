@@ -560,7 +560,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                                 idx_highlight = config->entry_count-1;
                         break;
                 case SCAN_F1:
-                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion (q)uit (*)debug");
+                        status = StrDuplicate(L"(d)efault, (+/-)timeout, (e)dit, (v)ersion (q)uit (*)dump");
                         break;
                 }
 
