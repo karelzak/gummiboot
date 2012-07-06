@@ -1339,5 +1339,5 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_free(&config);
         uefi_call_wrapper(root_dir->Close, 1, root_dir);
         uefi_call_wrapper(BS->CloseProtocol, 4, image, &LoadedImageProtocol, image, NULL);
-        return EFI_SUCCESS;
+        return uefi_call_wrapper(BS->Exit, 4, image, EFI_SUCCESS, 0, NULL);
 }
