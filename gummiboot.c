@@ -401,6 +401,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                 x_max = 80;
                 y_max = 25;
         }
+	/* reserve some space at the beginning of the line and for the cursor at the end */
+	x_max-=3;
 
         /* we check 10 times per second for a keystroke */
         if (config->timeout_sec > 0)
