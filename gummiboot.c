@@ -356,7 +356,7 @@ static VOID dump_status(Config *config) {
                 ConfigEntry *entry;
 
                 entry = config->entries[i];
-                Print(L"config entry:           %d/%d\n", i, config->entry_count);
+                Print(L"config entry:           %d/%d\n", i+1, config->entry_count);
                 Print(L"file                    '%s'\n", entry->file);
                 Print(L"title                   '%s'\n", entry->title);
                 Print(L"loader                  '%s'\n", entry->loader);
