@@ -65,10 +65,6 @@ if ! [[ $ID ]]; then
 	exit 1
 fi
 
-if ! [[ $PRETTY_NAME ]]; then
-	PRETTY_NAME="$NAME $VERSION"
-fi
-
 [[ -f /etc/machine-id ]] && read MACHINE_ID < /etc/machine-id
 
 if ! [[ $MACHINE_ID ]]; then
@@ -87,7 +83,7 @@ cp --reflink=auto --preserve "$vmlinuz" "${efidir}/$ID/$MACHINE_ID/"
 [[ $initrd ]] && cp --reflink=auto --preserve "$initrd" "${efidir}/$ID/$MACHINE_ID/"
 
 {
-	echo "title $PRETTY_NAME ($version) $rootlabel $rootdev ${MACHINE_ID:0:8}"
+	echo "title $NAME $VERSION_ID ($version) $rootlabel ${rootdev##/dev/} ${MACHINE_ID:0:8}"
 
 	echo "options $options"
 
