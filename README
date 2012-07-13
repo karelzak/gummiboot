@@ -18,5 +18,5 @@ selected entry loads and starts the EFI image.
 If no timeout is configured and no key pressed during bootup, the default
 entry is booted right away.
 
-Further documantation is available in the gummiboot wiki at:
+Further documentation is available in the gummiboot wiki at:
   http://freedesktop.org/wiki/Software/gummiboot
