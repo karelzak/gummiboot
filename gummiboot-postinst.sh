@@ -77,10 +77,8 @@ if [[ $rootdev ]]; then
 fi
 mkdir -p "${efidir}/$ID/$MACHINE_ID"
 
-# --reflink=auto does COW, so if it is on the same filesystem, data is only kept once
-# until someone modifies the file
-cp --reflink=auto --preserve "$vmlinuz" "${efidir}/$ID/$MACHINE_ID/"
-[[ $initrd ]] && cp --reflink=auto --preserve "$initrd" "${efidir}/$ID/$MACHINE_ID/"
+cp --preserve "$vmlinuz" "${efidir}/$ID/$MACHINE_ID/"
+[[ $initrd ]] && cp --preserve "$initrd" "${efidir}/$ID/$MACHINE_ID/"
 
 {
 	echo "title $NAME $VERSION_ID ($version) $rootlabel ${rootdev##/dev/} ${MACHINE_ID:0:8}"
