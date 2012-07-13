@@ -17,44 +17,44 @@
 # Copyright (C) 2012 Harald Hoyer <harald@redhat.com>
 
 if (( $# != 2 )); then
-	echo "Usage: $0 <version> <vmlinuz>" >&2
+	echo "Usage: $0 <KERNEL_VERSION> <KERNEL_IMAGE>" >&2
 	exit 1
 fi
 
-version="$1"
-vmlinuz="$2"
+KERNEL_VERSION="$1"
+KERNEL_IMAGE="$2"
 
-if ! [[ -f $vmlinuz ]]; then
-	echo "Can't find file $vmlinuz" >&2
+if ! [[ -f $KERNEL_IMAGE ]]; then
+	echo "Can't find file $KERNEL_IMAGE" >&2
 	exit 1
 fi
 
-if [[ -f /boot/loader/loader.conf ]]; then
-	efidir="/boot"
-elif [[ -f /boot/efi/loader/loader.conf ]]; then
-	efidir="/boot/efi"
+if [[ -d /boot/loader/entries ]]; then
+	EFI_DIR="/boot"
+elif [[ -f /boot/efi/loader/entries ]]; then
+	EFI_DIR="/boot/efi"
 fi
 
-if ! [[ $efidir ]] ; then
+if ! [[ $EFI_DIR ]] ; then
 	echo "Can't install new kernel for gummiboot: no "loader/loader.conf" found!" >&2
 	exit 1
 fi
 
-if [[ -f ${vmlinuz/vmlinuz/initrd} ]]; then
-	initrd=${vmlinuz/vmlinuz/initrd}
-elif [[ -f ${vmlinuz/vmlinuz/initrd}.img ]]; then
-	initrd=${vmlinuz/vmlinuz/initrd}.img
-elif [[ -f ${vmlinuz/vmlinuz/initramfs}.img ]]; then
-	initrd=${vmlinuz/vmlinuz/initramfs}.img
+if [[ -f ${KERNEL_IMAGE/vmlinuz/initrd} ]]; then
+	INITRD_IMAGE=${KERNEL_IMAGE/vmlinuz/initrd}
+elif [[ -f ${KERNEL_IMAGE/vmlinuz/initrd}.img ]]; then
+	INITRD_IMAGE=${KERNEL_IMAGE/vmlinuz/initrd}.img
+elif [[ -f ${KERNEL_IMAGE/vmlinuz/initramfs}.img ]]; then
+	INITRD_IMAGE=${KERNEL_IMAGE/vmlinuz/initramfs}.img
 fi
 
 if [[ -f /etc/kernel-cmdline ]]; then
 	while read line; do
-		options+="$line "
+		BOOT_OPTIONS+="$line "
 	done < /etc/kernel-cmdline
 fi
 
-if ! [[ $options ]]; then
+if ! [[ $BOOT_OPTIONS ]]; then
 	echo "Can't load default kernel command line parameters from /etc/kernel-cmdline!" >&2
 fi
 
@@ -71,36 +71,55 @@ if ! [[ $MACHINE_ID ]]; then
 	echo "Can't determine your machine id. Fix /etc/machine-id!" >&2
 fi
 
-rootdev=$(while read a a a a mp a a a dev a; do if [[ $mp = "/" ]]; then echo $dev;break;fi;done < /proc/self/mountinfo)
-if [[ $rootdev ]]; then
-	rootlabel=$(blkid -p -o udev -u filesystem $rootdev | while read line; do if [[ $line == ID_FS_LABEL* ]]; then echo ${line##ID_FS_LABEL=}; break; fi; done)
-fi
-mkdir -p "${efidir}/$ID/$MACHINE_ID"
+ROOT_DEV=$(while read a a a a mp a a a dev a; do
+    if [[ $mp = "/" ]]; then
+        echo $dev
+        break
+    fi
+    done < /proc/self/mountinfo)
 
-cp --preserve "$vmlinuz" "${efidir}/$ID/$MACHINE_ID/"
-[[ $initrd ]] && cp --preserve "$initrd" "${efidir}/$ID/$MACHINE_ID/"
+if [[ $ROOT_DEV ]]; then
+	ROOT_LABEL=$(blkid -p -o udev -u filesystem $ROOT_DEV |
+            while read line; do
+                if [[ $line == ID_FS_LABEL* ]]; then
+                    echo ${line##ID_FS_LABEL=}
+                    break
+                fi
+                done)
+fi
+
+mkdir -p "${EFI_DIR}/${ID}/${MACHINE_ID}"
+
+cp --preserve "$KERNEL_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
+[[ $INITRD_IMAGE ]] && cp --preserve "$INITRD_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
 
 {
-	echo "title $NAME $VERSION_ID ($version) $rootlabel ${rootdev##/dev/} ${MACHINE_ID:0:8}"
+	echo "title $NAME $VERSION_ID ($KERNEL_VERSION) $ROOT_LABEL ${ROOT_DEV##/dev/} ${MACHINE_ID:0:8}"
 
-	echo "options $options"
+	echo "options $BOOT_OPTIONS"
 
-	echo "linux /$ID/$MACHINE_ID/${vmlinuz##*/}"
+	echo "linux /$ID/$MACHINE_ID/${KERNEL_IMAGE##*/}"
 
-	[[ $initrd ]] && echo "initrd /$ID/$MACHINE_ID/${initrd##*/}"
+	[[ $INITRD_IMAGE ]] && echo "initrd /${ID}/${MACHINE_ID}/${INITRD_IMAGE##*/}"
 
-} > "${efidir}/loader/entries/$ID-$version-$MACHINE_ID.conf"
+} > "${EFI_DIR}/loader/entries/${ID}-${KERNEL_VERSION}-${MACHINE_ID}.conf"
 
-# now cleanup the old entries and files, for which no /lib/modules/$version exists
+if ! [[ -f ${EFI_DIR}/loader/loader.conf ]]; then
+    {
+        echo "default *$ID*"
+    } > "${EFI_DIR}/loader/loader.conf"
+fi
+
+# now cleanup the old entries and files, for which no /lib/modules/$KERNEL_VERSION exists
 (
-	cd ${efidir}/loader/entries
-	for conf in $ID-*-$MACHINE_ID.conf; do
-		version=${conf##$ID-}
-		version=${version%%-$MACHINE_ID.conf}
-		[[ $version ]] || continue
-		[[ -d /lib/modules/$version/kernel ]] && continue
+	cd ${EFI_DIR}/loader/entries
+	for conf in ${ID}-*-${MACHINE_ID}.conf; do
+		KERNEL_VERSION=${conf##$ID-}
+		KERNEL_VERSION=${KERNEL_VERSION%%-$MACHINE_ID.conf}
+		[[ $KERNEL_VERSION ]] || continue
+		[[ -d /lib/modules/${KERNEL_VERSION}/kernel ]] && continue
 		rm -f "$conf"
-		rm -f "${efidir}/$ID/$MACHINE_ID/*$version*"
+		rm -f "${EFI_DIR}/${ID}/${MACHINE_ID}/*${KERNEL_VERSION}*"
 	done
 )
 
