@@ -87,7 +87,7 @@ cp --reflink=auto --preserve "$vmlinuz" "${efidir}/$ID/$MACHINE_ID/"
 [[ $initrd ]] && cp --reflink=auto --preserve "$initrd" "${efidir}/$ID/$MACHINE_ID/"
 
 {
-	echo "title $PRETTY_NAME $rootlabel $rootdev ${MACHINE_ID:0:8}"
+	echo "title $PRETTY_NAME ($version) $rootlabel $rootdev ${MACHINE_ID:0:8}"
 
 	echo "options $options"
 
