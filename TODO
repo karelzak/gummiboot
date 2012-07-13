@@ -1,2 +1,6 @@
-* add config option for loader.conf to lock down (e)dit
+* add option for loader.conf to lock down
+    menu, (e)dit, (d)efault, (*)dump
 
+* avoid suggesting to install non-admin files in /etc (/etc/kernel/post...)
+
+* properly document the config format in the wiki
