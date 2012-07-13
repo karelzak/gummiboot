@@ -48,14 +48,14 @@ elif [[ -f ${KERNEL_IMAGE/vmlinuz/initramfs}.img ]]; then
 	INITRD_IMAGE=${KERNEL_IMAGE/vmlinuz/initramfs}.img
 fi
 
-if [[ -f /etc/kernel-cmdline ]]; then
+if [[ -f /etc/kernel/cmdline ]]; then
 	while read line; do
 		BOOT_OPTIONS+="$line "
-	done < /etc/kernel-cmdline
+	done < /etc/kernel/cmdline
 fi
 
 if ! [[ $BOOT_OPTIONS ]]; then
-	echo "Can't load default kernel command line parameters from /etc/kernel-cmdline!" >&2
+	echo "Can't load default kernel command line parameters from /etc/kernel/cmdline!" >&2
 fi
 
 [[ -f /etc/os-release ]] && . /etc/os-release
