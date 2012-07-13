@@ -1,6 +1,14 @@
 * add option for loader.conf to lock down
-    menu, (e)dit, (d)efault, (*)dump
+    menu, (e)dit, (d)efault, (*)dump ?
 
-* avoid suggesting to install non-admin files in /etc (/etc/kernel/post...)
+* postinst
+  - never touch *any* unrelated fragment file from a specific kernel install;
+    (do not try to be smart)
+  - avoid suggesting to install non-admin files in /etc (/etc/kernel/post...)
 
-* properly document the config format in the wiki
+* add "title-detail" (carrying the machine id or the device name) support to
+  the fragment file and display the details along with the "title" if we have
+  non-unique titles (pretty looking menu without silly numbers if no needed)
+
+* properly document the config file format, directory layout and EFI variable
+  in the wiki; make it more look like a spec
