@@ -25,7 +25,7 @@ KERNEL_VERSION="$1"
 KERNEL_IMAGE="$2"
 
 if ! [[ -f $KERNEL_IMAGE ]]; then
-	echo "Can't find file $KERNEL_IMAGE" >&2
+	echo "Can't find file $KERNEL_IMAGE!" >&2
 	exit 1
 fi
 
@@ -36,7 +36,8 @@ elif [[ -f /boot/efi/loader/entries ]]; then
 fi
 
 if ! [[ $EFI_DIR ]] ; then
-	echo "Can't install new kernel for gummiboot: no "loader/loader.conf" found!" >&2
+	echo "Can't install new kernel for loader: no directory 'loader/entries found!" >&2
+	echo "Please create the directory 'loader/entries' in your EFI partition." >&2
 	exit 1
 fi
 
@@ -56,19 +57,22 @@ fi
 
 if ! [[ $BOOT_OPTIONS ]]; then
 	echo "Can't load default kernel command line parameters from /etc/kernel/cmdline!" >&2
+	echo "Please specify the kernel command line in /etc/kernel/cmdline!" >&2
 fi
 
 [[ -f /etc/os-release ]] && . /etc/os-release
 
 if ! [[ $ID ]]; then
-	echo "Can't determine the ID of your distribution. Fix /etc/os-release!" >&2
+	echo "Can't determine the ID of your distribution. Please populate /etc/os-release!" >&2
+        echo "See http://www.freedesktop.org/software/systemd/man/os-release.html" >&2
 	exit 1
 fi
 
 [[ -f /etc/machine-id ]] && read MACHINE_ID < /etc/machine-id
 
 if ! [[ $MACHINE_ID ]]; then
-	echo "Can't determine your machine id. Fix /etc/machine-id!" >&2
+	echo "Can't determine your machine id. Please populate /etc/machine-id!" >&2
+        echo "See http://www.freedesktop.org/software/systemd/man/machine-id.html" >&2
 fi
 
 ROOT_DEV=$(while read a a a a mp a a a dev a; do
