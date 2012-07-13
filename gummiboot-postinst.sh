@@ -110,7 +110,7 @@ cp --preserve "$KERNEL_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
 
 if ! [[ -f ${EFI_DIR}/loader/loader.conf ]]; then
     {
-        echo "default *$ID*"
+        echo "default $ID-"
     } > "${EFI_DIR}/loader/loader.conf"
 fi
 
