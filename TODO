@@ -1,14 +1,15 @@
-* add option for loader.conf to lock down
-    menu, (e)dit, (d)efault, (*)dump ?
+* add option for loader.conf to lock down: menu, (e)dit, (d)efault, (*)dump ?
+  --> silly "protection" against init=/bin/sh and the visibility of passwords
 
-* postinst
-  - never touch *any* unrelated fragment file from a specific kernel install;
-    (do not try to be smart)
-  - avoid suggesting to install non-admin files in /etc (/etc/kernel/post...)
+* postinst: never touch *any* unrelated fragment file, only the one for the
+  specific kernel install/removal -> do not try to be smart
 
-* add "title-detail" (carrying the machine id or the device name) support to
-  the fragment file and display the details along with the "title" if we have
-  non-unique titles (pretty looking menu without silly numbers if no needed)
+* avoid to suggest to install non-admin files in /etc (/etc/kernel/post...)
+  -> it's 2012, /etc is not for static stuff, it's *local* admin territory
+
+* add "title-detail" (carrying the machine-id / the root device name) support
+  to the fragment file. Display the details along with the "title" if we have
+  non-unique titles -> pretty looking menu without silly numbers if not needed
 
 * properly document the config file format, directory layout and EFI variable
-  in the wiki; make it more look like a spec
+  in the wiki; make it more look like a spec -> easier to adapt other loaders
