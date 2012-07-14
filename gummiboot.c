@@ -404,8 +404,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                 x_max = 80;
                 y_max = 25;
         }
-	/* reserve some space at the beginning of the line and for the cursor at the end */
-	x_max-=3;
+        /* reserve some space at the beginning of the line and for the cursor at the end */
+        x_max-=3;
 
         /* we check 10 times per second for a keystroke */
         if (config->timeout_sec > 0)
@@ -662,11 +662,12 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                 }
         }
 
+        *chosen_entry = config->entries[idx_highlight];
+
         for (i = 0; i < config->entry_count; i++)
                 FreePool(lines[i]);
         FreePool(lines);
         FreePool(clearline);
-        *chosen_entry = config->entries[idx_highlight];
 
         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_WHITE|EFI_BACKGROUND_BLACK);
         uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -1247,15 +1248,15 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
         EFI_STATUS err;
         ConfigEntry *entry;
 
+        /* do not add an entry for ourselves */
+        if (StrCmp(loader, loaded_image_path) == 0)
+                return;
+
         /* check existence */
         err = uefi_call_wrapper(root_dir->Open, 5, root_dir, &handle, loader, EFI_FILE_MODE_READ, 0);
         if (EFI_ERROR(err))
                 return;
         uefi_call_wrapper(handle->Close, 1, handle);
-
-        /* do not add an entry for ourselves */
-        if (StrCmp(loader, loaded_image_path) == 0)
-                return;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
         entry->title = StrDuplicate(title);
