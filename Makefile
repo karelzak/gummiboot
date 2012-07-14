@@ -2,6 +2,7 @@ VERSION=3
 
 ARCH=$(shell $(CC) -dumpmachine | sed "s/\(-\).*$$//")
 LIBDIR=$(shell echo $$(cd /usr/lib/$$(gcc -print-multi-os-directory); pwd))
+LIBEFIDIR=$(or $(wildcard $(LIBDIR)/gnuefi), $(LIBDIR))
 
 CPPFLAGS = \
 	-I. \
@@ -24,13 +25,13 @@ CFLAGS += \
 	-DEFI_FUNCTION_WRAPPER
 endif
 
-LDFLAGS = -T $(LIBDIR)/gnuefi/elf_$(ARCH)_efi.lds \
+LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 	-shared \
 	-Bsymbolic \
 	-nostdlib \
 	-znocombreloc \
 	-L $(LIBDIR) \
-	$(LIBDIR)/gnuefi/crt0-efi-$(ARCH).o \
+	$(LIBEFIDIR)/crt0-efi-$(ARCH).o \
 	$(shell $(CC) -print-libgcc-file-name)
 
 %.o: %.c
