@@ -1371,8 +1371,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_entry_add_loader(&config, root_dir, loaded_image_path,
                                 L"loader-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"loader-bootx86", L"EFI default loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
-	config_entry_add_loader(&config, root_dir, loaded_image_path,
+                                L"loader-bootx86", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+        config_entry_add_loader(&config, root_dir, loaded_image_path,
                                 L"loader-shellx64", L"EFI Shell", L"\\shellx64.efi");
         FreePool(loaded_image_path);
 
