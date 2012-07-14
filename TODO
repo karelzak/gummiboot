@@ -1,3 +1,5 @@
+* print "press ESC" if we do not find anything to start up
+
 * add option for loader.conf to lock down: menu, (e)dit, (d)efault, (*)dump ?
   --> silly "protection" against init=/bin/sh and the visibility of passwords
 
