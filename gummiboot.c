@@ -1371,13 +1371,19 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_entry_add_loader(&config, root_dir, loaded_image_path,
                                 L"loader-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"loader-bootx86", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
-        config_entry_add_loader(&config, root_dir, loaded_image_path,
                                 L"loader-shellx64", L"EFI Shell", L"\\shellx64.efi");
+        config_entry_add_loader(&config, root_dir, loaded_image_path,
+                                L"loader-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
         FreePool(loaded_image_path);
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
         config_default_entry_select(&config);
+
+        if (config.entry_count == 0) {
+                Print(L"No loader found. Configuration files in \\loader\\entries\\*.conf are needed.");
+                uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
+                goto out;
+        }
 
         /* show menu when key is pressed or timeout is set */
         if (config.timeout_sec == 0) {
@@ -1399,18 +1405,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 }
 
                 /* export the selected boot entry to the system */
-                err = efivar_set(L"LoaderEntrySelected",  entry->file, FALSE);
-                if (EFI_ERROR(err)) {
-                       Print(L"Error storing LoaderEntrySelected variable: %r ", err);
-                       uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
-                }
+                efivar_set(L"LoaderEntrySelected",  entry->file, FALSE);
 
                 image_start(image, loaded_image, &config, entry);
 
                 menu = TRUE;
                 config.timeout_sec = 0;
         }
-
+out:
         config_free(&config);
         uefi_call_wrapper(root_dir->Close, 1, root_dir);
         uefi_call_wrapper(BS->CloseProtocol, 4, image, &LoadedImageProtocol, image, NULL);
