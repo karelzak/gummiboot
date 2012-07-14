@@ -11,9 +11,5 @@
   and which supports: create/update/delete conf fragment, update/cleanup
   all fragments belonging to this machine.
 
-* add "title-details" (carrying the machine-id / the root device name) support
-  to the fragment file. Display the details along with the "title" if we have
-  non-unique titles -> pretty looking menu without silly numbers if not needed
-
 * properly document the config file format, directory layout and EFI variable
   in the wiki; make it more look like a spec -> easier to adapt other loaders

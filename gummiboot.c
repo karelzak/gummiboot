@@ -41,11 +41,15 @@ enum loader_type {
 
 typedef struct {
         CHAR16 *file;
+        CHAR16 *title_show;
         CHAR16 *title;
+        CHAR16 *title_version;
+        CHAR16 *title_machine;
         enum loader_type type;
         CHAR16 *loader;
         CHAR16 *options;
         BOOLEAN no_autoselect;
+        BOOLEAN non_unique;
 } ConfigEntry;
 
 typedef struct {
@@ -361,7 +365,13 @@ static VOID dump_status(Config *config) {
                 entry = config->entries[i];
                 Print(L"config entry:           %d/%d\n", i+1, config->entry_count);
                 Print(L"file                    '%s'\n", entry->file);
-                Print(L"title                   '%s'\n", entry->title);
+                Print(L"title show              '%s'\n", entry->title_show);
+                if (entry->title)
+                        Print(L"title                   '%s'\n", entry->title);
+                if (entry->title_version)
+                        Print(L"title version           '%s'\n", entry->title_version);
+                if (entry->title_machine)
+                        Print(L"title machine           '%s'\n", entry->title_machine);
                 Print(L"loader                  '%s'\n", entry->loader);
                 if (entry->options)
                         Print(L"options                 '%s'\n", entry->options);
@@ -433,7 +443,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
         for (i = 0; i < config->entry_count; i++) {
                 UINTN entry_len;
 
-                entry_len = StrLen(config->entries[i]->title);
+                entry_len = StrLen(config->entries[i]->title_show);
                 if (line_width < entry_len)
                         line_width = entry_len;
         }
@@ -443,7 +453,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
         /* menu entries title lines */
         lines = AllocatePool(sizeof(CHAR16 *) * config->entry_count);
         for (i = 0; i < config->entry_count; i++)
-                lines[i] = PoolPrint(L"  %-.*s ", line_width, config->entries[i]->title);
+                lines[i] = PoolPrint(L"  %-.*s  ", line_width, config->entries[i]->title_show);
 
         status = NULL;
         clearline = AllocatePool((x_max+1) * sizeof(CHAR16));
@@ -689,7 +699,9 @@ static VOID config_add_entry(Config *config, ConfigEntry *entry) {
 }
 
 static VOID config_entry_free(ConfigEntry *entry) {
+        FreePool(entry->title_show);
         FreePool(entry->title);
+        FreePool(entry->title_machine);
         FreePool(entry->loader);
         FreePool(entry->options);
 }
@@ -971,6 +983,18 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
                         continue;
                 }
 
+                if (strcmpa((CHAR8 *)"title-version", key) == 0) {
+                        FreePool(entry->title_version);
+                        entry->title_version = stra_to_str(value);
+                        continue;
+                }
+
+                if (strcmpa((CHAR8 *)"title-machine", key) == 0) {
+                        FreePool(entry->title_machine);
+                        entry->title_machine = stra_to_str(value);
+                        continue;
+                }
+
                 if (strcmpa((CHAR8 *)"linux", key) == 0) {
                         FreePool(entry->loader);
                         entry->type = LOADER_LINUX;
@@ -1054,9 +1078,6 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         if (len > 5)
                 entry->file[len - 5] = '\0';
         StrLwr(entry->file);
-
-        if (!entry->title)
-                entry->title = StrDuplicate(entry->loader);
 
         config_add_entry(config, entry);
 }
@@ -1145,17 +1166,17 @@ static VOID config_load(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image
         /* sort entries after version number */
         for (i = 1; i < config->entry_count; i++) {
                 BOOLEAN more;
-                UINTN j;
+                UINTN k;
 
                 more = FALSE;
-                for (j = 0; j < config->entry_count - i; j++) {
+                for (k = 0; k < config->entry_count - i; k++) {
                         ConfigEntry *entry;
 
-                        if (str_verscmp(config->entries[j]->file, config->entries[j+1]->file) <= 0)
+                        if (str_verscmp(config->entries[k]->file, config->entries[k+1]->file) <= 0)
                                 continue;
-                        entry = config->entries[j];
-                        config->entries[j] = config->entries[j+1];
-                        config->entries[j+1] = entry;
+                        entry = config->entries[k];
+                        config->entries[k] = config->entries[k+1];
+                        config->entries[k+1] = entry;
                         more = TRUE;
                 }
                 if (!more)
@@ -1240,6 +1261,113 @@ static VOID config_default_entry_select(Config *config) {
         /* select the last entry */
         if (config->entry_count)
                 config->idx_default = config->entry_count-1;
+}
+
+/* generate a unique title, avoiding non-distinguishable menu entries */
+static VOID config_title_generate(Config *config) {
+        UINTN i, k;
+        BOOLEAN unique;
+
+        /* set title */
+        for (i = 0; i < config->entry_count; i++) {
+                CHAR16 *title;
+
+                FreePool(config->entries[i]->title_show);
+                title = config->entries[i]->title;
+                if (!title)
+                        title = config->entries[i]->file;
+                config->entries[i]->title_show = StrDuplicate(title);
+        }
+
+        unique = TRUE;
+        for (i = 0; i < config->entry_count; i++) {
+                for (k = 0; k < config->entry_count; k++) {
+                        if (i == k)
+                                continue;
+                        if (StrCmp(config->entries[i]->title_show, config->entries[k]->title_show) != 0)
+                                continue;
+
+                        unique = FALSE;
+                        config->entries[i]->non_unique = TRUE;
+                        config->entries[k]->non_unique = TRUE;
+                }
+        }
+        if (unique)
+                return;
+
+        /* add version to non-unique titles */
+        for (i = 0; i < config->entry_count; i++) {
+                CHAR16 *s;
+
+                if (!config->entries[i]->non_unique)
+                        continue;
+                if (!config->entries[i]->title_version)
+                        continue;
+
+                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->title_version);
+                FreePool(config->entries[i]->title_show);
+                config->entries[i]->title_show = s;
+                config->entries[i]->non_unique = FALSE;
+        }
+
+        unique = TRUE;
+        for (i = 0; i < config->entry_count; i++) {
+                for (k = 0; k < config->entry_count; k++) {
+                        if (i == k)
+                                continue;
+                        if (StrCmp(config->entries[i]->title_show, config->entries[k]->title_show) != 0)
+                                continue;
+
+                        unique = FALSE;
+                        config->entries[i]->non_unique = TRUE;
+                        config->entries[k]->non_unique = TRUE;
+                }
+        }
+        if (unique)
+                return;
+
+        /* add machine-id to non-unique titles */
+        for (i = 0; i < config->entry_count; i++) {
+                CHAR16 *s;
+
+                if (!config->entries[i]->non_unique)
+                        continue;
+                if (!config->entries[i]->title_machine)
+                        continue;
+
+                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->title_machine);
+                FreePool(config->entries[i]->title_show);
+                config->entries[i]->title_show = s;
+                config->entries[i]->non_unique = FALSE;
+        }
+
+        unique = TRUE;
+        for (i = 0; i < config->entry_count; i++) {
+                for (k = 0; k < config->entry_count; k++) {
+                        if (i == k)
+                                continue;
+                        if (StrCmp(config->entries[i]->title_show, config->entries[k]->title_show) != 0)
+                                continue;
+
+                        unique = FALSE;
+                        config->entries[i]->non_unique = TRUE;
+                        config->entries[k]->non_unique = TRUE;
+                }
+        }
+        if (unique)
+                return;
+
+        /* add file name to non-unique titles */
+        for (i = 0; i < config->entry_count; i++) {
+                CHAR16 *s;
+
+                if (!config->entries[i]->non_unique)
+                        continue;
+                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->file);
+                FreePool(config->entries[i]->title_show);
+                config->entries[i]->title_show = s;
+                config->entries[i]->non_unique = FALSE;
+        }
 }
 
 static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
@@ -1370,12 +1498,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         /* if we find some well-known loaders, add them to the end of the list */
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"loader-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
+                                L"builtin-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"loader-shellx64", L"EFI Shell", L"\\shellx64.efi");
+                                L"builtin-shellx64", L"EFI Shell", L"\\shellx64.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
-                                L"loader-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+                                L"builtin-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
         FreePool(loaded_image_path);
+
+        config_title_generate(&config);
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
         config_default_entry_select(&config);
