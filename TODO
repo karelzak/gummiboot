@@ -7,11 +7,11 @@
 * avoid to suggest to install non-admin files in /etc (/etc/kernel/post...)
   -> it's 2012, /etc is not for static stuff, it's *local* admin territory
 
-* Turn postinst into a full-featured 'loaderctl', which could live in /usr/bin
+* Turn postinst into a full-featured loaderctl", which could live in /usr/bin
   and which supports: create/update/delete conf fragment, update/cleanup
   all fragments belonging to this machine.
 
-* add "title-detail" (carrying the machine-id / the root device name) support
+* add "title-details" (carrying the machine-id / the root device name) support
   to the fragment file. Display the details along with the "title" if we have
   non-unique titles -> pretty looking menu without silly numbers if not needed
 
