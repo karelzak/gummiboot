@@ -4,7 +4,7 @@
  * menu.
  *
  * All gummiboot code is LGPL not GPL, to stay out of politics and to give
- * teh freedom of copying code from programs to possible future libraries.
+ * the freedom of copying code from programs to possible future libraries.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by
