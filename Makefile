@@ -51,7 +51,7 @@ clean:
 	rm -f gummiboot.o gummiboot.so gummiboot.efi
 
 test: gummiboot.efi
-	@# UUID=677B-ECF2 /boot2 vfat noauto,x-systemd.automount,x-gvfs-hide 1 3
+	@# UUID=677B-ECF2 /boot vfat noauto,umask=0077,x-systemd.automount,x-gvfs-hide 1 2
 	cp -v gummiboot.efi /boot/EFI/gummiboot/
 	@# unmount to sync EFI partition to disk
 	sync
