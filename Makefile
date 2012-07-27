@@ -18,11 +18,11 @@ CFLAGS = \
 	-nostdinc \
 	-ffreestanding \
 	-fno-stack-protector
-# -mno-red-zone
 
 ifeq ($(ARCH),x86_64)
 CFLAGS += \
-	-DEFI_FUNCTION_WRAPPER
+	-DEFI_FUNCTION_WRAPPER \
+	-mno-red-zone
 endif
 
 LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
