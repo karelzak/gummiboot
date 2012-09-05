@@ -314,7 +314,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         return enter;
 }
 
-static VOID dump_status(Config *config) {
+static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         UINTN index;
         INTN i;
         CHAR16 *s;
@@ -323,6 +323,7 @@ static VOID dump_status(Config *config) {
         uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 
         Print(L"gummiboot version:      %d\n", VERSION);
+        Print(L"loaded image:           %s\n", loaded_image_path);
         Print(L"UEFI version:           %d.%02d\n", ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
         Print(L"firmware vendor:        %s\n", ST->FirmwareVendor);
         Print(L"firmware version:       %d.%02d\n", ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
@@ -429,7 +430,7 @@ static EFI_STATUS console_text_mode(VOID) {
         return uefi_call_wrapper(ConsoleControl->SetMode, 2, ConsoleControl, EfiConsoleControlScreenText);
 }
 
-static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
+static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *loaded_image_path) {
         EFI_STATUS err;
         INTN visible_max;
         INTN idx_highlight;
@@ -712,7 +713,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry) {
                                            ST->FirmwareVendor, ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
                         break;
                 case '*':
-                        dump_status(config);
+                        dump_status(config, loaded_image_path);
                         refresh = TRUE;
                         break;
                 }
@@ -1054,7 +1055,7 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
                         entry->loader = stra_to_path(value);
 
                         /* do not add an entry for ourselves */
-                        if (StrCmp(entry->loader, loaded_image_path) == 0) {
+                        if (StriCmp(entry->loader, loaded_image_path) == 0) {
                                 entry->type = LOADER_UNDEFINED;
                                 break;
                         }
@@ -1427,7 +1428,7 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
         ConfigEntry *entry;
 
         /* do not add an entry for ourselves */
-        if (StrCmp(loader, loaded_image_path) == 0)
+        if (StriCmp(loader, loaded_image_path) == 0)
                 return;
 
         /* check existence */
@@ -1552,7 +1553,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                                 L"builtin-shellx64", L"EFI Shell", L"\\shellx64.efi");
         config_entry_add_loader(&config, root_dir, loaded_image_path,
                                 L"builtin-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
-        FreePool(loaded_image_path);
 
         config_title_generate(&config);
 
@@ -1580,7 +1580,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 entry = config.entries[config.idx_default];
                 if (menu) {
                         efivar_set_ticks(L"LoaderTicksStartMenu", 0);
-                        if (!menu_run(&config, &entry))
+                        if (!menu_run(&config, &entry, loaded_image_path))
                                 break;
                 }
 
@@ -1593,6 +1593,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 config.timeout_sec = 0;
         }
 out:
+        FreePool(loaded_image_path);
         config_free(&config);
         uefi_call_wrapper(root_dir->Close, 1, root_dir);
         uefi_call_wrapper(BS->CloseProtocol, 4, image, &LoadedImageProtocol, image, NULL);
