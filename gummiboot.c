@@ -1244,8 +1244,6 @@ static VOID config_default_entry_select(Config *config) {
                 UINTN i;
 
                 for (i = 0; i < config->entry_count; i++) {
-                        if (!config->entries[i]->file)
-                                continue;
                         if (StrCmp(config->entries[i]->file, var) == 0) {
                                 config->idx_default = i;
                                 found = TRUE;
@@ -1270,8 +1268,6 @@ static VOID config_default_entry_select(Config *config) {
                 UINTN i;
 
                 for (i = 0; i < config->entry_count; i++) {
-                        if (!config->entries[i]->file)
-                                continue;
                         if (StrCmp(config->entries[i]->file, var) == 0) {
                                 config->idx_default = i;
                                 config->idx_default_efivar = i;
@@ -1293,8 +1289,6 @@ static VOID config_default_entry_select(Config *config) {
                 UINTN i;
 
                 for (i = config->entry_count-1; i >= 0; i--) {
-                        if (!config->entries[i]->file)
-                                continue;
                         if (config->entries[i]->no_autoselect)
                                 continue;
                         if (MetaiMatch(config->entries[i]->file, config->entry_default_pattern)) {
@@ -1305,8 +1299,18 @@ static VOID config_default_entry_select(Config *config) {
         }
 
         /* select the last entry */
-        if (config->entry_count)
+        if (config->entry_count) {
+                UINTN i;
+
+                for (i = config->entry_count-1; i >= 0; i--) {
+                        if (config->entries[i]->no_autoselect)
+                                continue;
+                        config->idx_default = i;
+                        return;
+                }
+
                 config->idx_default = config->entry_count-1;
+        }
 }
 
 /* generate a unique title, avoiding non-distinguishable menu entries */
@@ -1435,8 +1439,7 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
         entry = AllocateZeroPool(sizeof(ConfigEntry));
         entry->title = StrDuplicate(title);
         entry->loader = StrDuplicate(loader);
-        if (file)
-                entry->file = StrDuplicate(file);
+        entry->file = StrDuplicate(file);
         entry->no_autoselect = TRUE;
         config_add_entry(config, entry);
 }
@@ -1582,7 +1585,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 }
 
                 /* export the selected boot entry to the system */
-                efivar_set(L"LoaderEntrySelected",  entry->file, FALSE);
+                efivar_set(L"LoaderEntrySelected", entry->file, FALSE);
 
                 image_start(image, loaded_image, &config, entry);
 
