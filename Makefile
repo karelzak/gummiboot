@@ -1,4 +1,4 @@
-VERSION=5
+VERSION=6
 
 ARCH=$(shell $(CC) -dumpmachine | sed "s/\(-\).*$$//")
 LIBDIR=$(shell echo $$(cd /usr/lib/$$(gcc -print-multi-os-directory); pwd))
