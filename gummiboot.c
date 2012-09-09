@@ -45,6 +45,7 @@ typedef struct {
         CHAR16 *title;
         CHAR16 *title_version;
         CHAR16 *title_machine;
+        EFI_HANDLE *device;
         enum loader_type type;
         CHAR16 *loader;
         CHAR16 *options;
@@ -362,6 +363,7 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
 
         for (i = 0; i < config->entry_count; i++) {
                 ConfigEntry *entry;
+                EFI_DEVICE_PATH *device_path;
 
                 entry = config->entries[i];
                 Print(L"config entry:           %d/%d\n", i+1, config->entry_count);
@@ -373,6 +375,9 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
                         Print(L"title version           '%s'\n", entry->title_version);
                 if (entry->title_machine)
                         Print(L"title machine           '%s'\n", entry->title_machine);
+                device_path = DevicePathFromHandle(entry->device);
+                if (device_path)
+                        Print(L"device handle           '%s'\n", DevicePathToStr(device_path));
                 Print(L"loader                  '%s'\n", entry->loader);
                 if (entry->options)
                         Print(L"options                 '%s'\n", entry->options);
@@ -1013,7 +1018,7 @@ static VOID config_defaults_load_from_file(Config *config, CHAR8 *content) {
         }
 }
 
-static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *content, CHAR16 *loaded_image_path) {
+static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR16 *file, CHAR8 *content, CHAR16 *loaded_image_path) {
         ConfigEntry *entry;
         CHAR8 *line;
         CHAR8 *key, *value;
@@ -1119,6 +1124,7 @@ static VOID config_entry_add_from_file(Config *config, CHAR16 *file, CHAR8 *cont
         }
         FreePool(initrd);
 
+        entry->device = device;
         entry->file = StrDuplicate(file);
         len = StrLen(entry->file);
         /* remove ".conf" */
@@ -1159,7 +1165,7 @@ out:
         return len;
 }
 
-static VOID config_load(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image_path) {
+static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path) {
         EFI_FILE_HANDLE entries_dir;
         EFI_STATUS err;
         CHAR8 *content;
@@ -1205,7 +1211,7 @@ static VOID config_load(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image
 
                         len = file_read(config, entries_dir, f->FileName, &content);
                         if (len > 0)
-                                config_entry_add_from_file(config, f->FileName, content, loaded_image_path);
+                                config_entry_add_from_file(config, device, f->FileName, content, loaded_image_path);
                 }
                 uefi_call_wrapper(entries_dir->Close, 1, entries_dir);
         }
@@ -1421,14 +1427,14 @@ static VOID config_title_generate(Config *config) {
         }
 }
 
-static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
+static VOID config_entry_add_loader(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
                                     CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
         EFI_FILE_HANDLE handle;
         EFI_STATUS err;
         ConfigEntry *entry;
 
         /* do not add an entry for ourselves */
-        if (StriCmp(loader, loaded_image_path) == 0)
+        if (loaded_image_path && StriCmp(loader, loaded_image_path) == 0)
                 return;
 
         /* check existence */
@@ -1439,20 +1445,45 @@ static VOID config_entry_add_loader(Config *config, EFI_FILE *root_dir, CHAR16 *
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
         entry->title = StrDuplicate(title);
+        entry->device = device;
         entry->loader = StrDuplicate(loader);
         entry->file = StrDuplicate(file);
+        StrLwr(entry->file);
         entry->no_autoselect = TRUE;
         config_add_entry(config, entry);
 }
 
-static EFI_STATUS image_start(EFI_HANDLE parent_image, EFI_LOADED_IMAGE *parent_loaded_image,
-                              const Config *config, const ConfigEntry *entry) {
+static VOID config_entry_add_osx(Config *config) {
+        EFI_STATUS err;
+        UINTN handle_count = 0;
+        EFI_HANDLE *handles = NULL;
+
+        err = LibLocateHandle(ByProtocol, &FileSystemProtocol, NULL, &handle_count, &handles);
+        if (EFI_ERROR(err) == EFI_SUCCESS) {
+                UINTN i;
+
+                for (i = 0; i < handle_count; i++) {
+                        EFI_FILE *root;
+
+                        root = LibOpenRoot(handles[i]);
+                        if (!root)
+                                continue;
+                        config_entry_add_loader(config, handles[i], root, NULL, L"builtin-osx", L"OS X",
+                                                L"\\System\\Library\\CoreServices\\boot.efi");
+                        uefi_call_wrapper(root->Close, 1, root);
+                }
+
+                FreePool(handles);
+        }
+}
+
+static EFI_STATUS image_start(EFI_HANDLE parent_image, const Config *config, const ConfigEntry *entry) {
         EFI_STATUS err;
         EFI_HANDLE image;
         EFI_DEVICE_PATH *path;
         CHAR16 *options;
 
-        path = FileDevicePath(parent_loaded_image->DeviceHandle, entry->loader);
+        path = FileDevicePath(entry->device, entry->loader);
         if (!path) {
                 Print(L"Error getting device path.");
                 uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
@@ -1544,15 +1575,16 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         /* scan "\loader\entries\*.conf" files */
         ZeroMem(&config, sizeof(Config));
-        config_load(&config, root_dir, loaded_image_path);
+        config_load(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path);
 
         /* if we find some well-known loaders, add them to the end of the list */
-        config_entry_add_loader(&config, root_dir, loaded_image_path,
+        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
                                 L"builtin-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
-        config_entry_add_loader(&config, root_dir, loaded_image_path,
+        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
                                 L"builtin-shellx64", L"EFI Shell", L"\\shellx64.efi");
-        config_entry_add_loader(&config, root_dir, loaded_image_path,
+        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
                                 L"builtin-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+        config_entry_add_osx(&config);
 
         config_title_generate(&config);
 
@@ -1587,7 +1619,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 /* export the selected boot entry to the system */
                 efivar_set(L"LoaderEntrySelected", entry->file, FALSE);
 
-                image_start(image, loaded_image, &config, entry);
+                image_start(image, &config, entry);
 
                 menu = TRUE;
                 config.timeout_sec = 0;
