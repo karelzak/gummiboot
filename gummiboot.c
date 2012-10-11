@@ -311,6 +311,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         }
 
         uefi_call_wrapper(ST->ConOut->EnableCursor, 2, ST->ConOut, FALSE);
+        FreePool(print);
         FreePool(line);
         return enter;
 }
@@ -1176,6 +1177,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
         len = file_read(config, root_dir, L"\\loader\\loader.conf", &content);
         if (len > 0)
                 config_defaults_load_from_file(config, content);
+        FreePool(content);
 
         err = efivar_get_int(L"LoaderConfigTimeout", &sec);
         if (EFI_ERROR(err) == EFI_SUCCESS) {
@@ -1212,6 +1214,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
                         len = file_read(config, entries_dir, f->FileName, &content);
                         if (len > 0)
                                 config_entry_add_from_file(config, device, f->FileName, content, loaded_image_path);
+                        FreePool(content);
                 }
                 uefi_call_wrapper(entries_dir->Close, 1, entries_dir);
         }
