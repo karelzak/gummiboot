@@ -97,7 +97,7 @@ static EFI_STATUS efivar_get(CHAR16 *name, CHAR16 **value) {
                 return EFI_OUT_OF_RESOURCES;
 
         err = uefi_call_wrapper(RT->GetVariable, 5, name, &loader_guid, NULL, &size, val);
-        if (EFI_ERROR(err) == 0)
+        if (EFI_ERROR(err) == EFI_SUCCESS)
                 *value = val;
         else
                 FreePool(val);
@@ -117,7 +117,7 @@ static EFI_STATUS efivar_get_int(CHAR16 *name, INTN *i) {
         EFI_STATUS err;
 
         err = efivar_get(name, &val);
-        if (EFI_ERROR(err) == 0) {
+        if (EFI_ERROR(err) == EFI_SUCCESS) {
                 *i = Atoi(val);
                 FreePool(val);
         }
