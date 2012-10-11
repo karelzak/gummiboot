@@ -1240,6 +1240,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
 static VOID config_default_entry_select(Config *config) {
         CHAR16 *var;
         EFI_STATUS err;
+        UINTN i;
 
         /*
          * The EFI variable to specify a boot entry for the next, and only the
@@ -1248,7 +1249,6 @@ static VOID config_default_entry_select(Config *config) {
         err = efivar_get(L"LoaderEntryOneShot", &var);
         if (EFI_ERROR(err) == EFI_SUCCESS) {
                 BOOLEAN found = FALSE;
-                UINTN i;
 
                 for (i = 0; i < config->entry_count; i++) {
                         if (StrCmp(config->entries[i]->file, var) == 0) {
@@ -1272,7 +1272,6 @@ static VOID config_default_entry_select(Config *config) {
         err = efivar_get(L"LoaderEntryDefault", &var);
         if (EFI_ERROR(err) == EFI_SUCCESS) {
                 BOOLEAN found = FALSE;
-                UINTN i;
 
                 for (i = 0; i < config->entry_count; i++) {
                         if (StrCmp(config->entries[i]->file, var) == 0) {
@@ -1288,7 +1287,7 @@ static VOID config_default_entry_select(Config *config) {
         }
         config->idx_default_efivar = -1;
 
-        if (!config->entry_count)
+        if (config->entry_count == 0)
                 return;
 
         /*
@@ -1296,8 +1295,6 @@ static VOID config_default_entry_select(Config *config) {
          * entry (largest number) matching the given pattern.
          */
         if (config->entry_default_pattern) {
-                UINTN i;
-
                 for (i = config->entry_count-1; i >= 0; i--) {
                         if (config->entries[i]->no_autoselect)
                                 continue;
@@ -1309,18 +1306,14 @@ static VOID config_default_entry_select(Config *config) {
         }
 
         /* select the last entry */
-        {
-                UINTN i;
-
-                for (i = config->entry_count-1; i >= 0; i--) {
-                        if (config->entries[i]->no_autoselect)
-                                continue;
-                        config->idx_default = i;
-                        return;
-                }
-
-                config->idx_default = config->entry_count-1;
+        for (i = config->entry_count-1; i >= 0; i--) {
+                if (config->entries[i]->no_autoselect)
+                        continue;
+                config->idx_default = i;
+                return;
         }
+
+        config->idx_default = config->entry_count-1;
 }
 
 /* generate a unique title, avoiding non-distinguishable menu entries */
