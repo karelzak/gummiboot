@@ -1288,6 +1288,9 @@ static VOID config_default_entry_select(Config *config) {
         }
         config->idx_default_efivar = -1;
 
+        if (!config->entry_count)
+                return;
+
         /*
          * Match the pattern from the end of the list to the start, find last
          * entry (largest number) matching the given pattern.
@@ -1306,7 +1309,7 @@ static VOID config_default_entry_select(Config *config) {
         }
 
         /* select the last entry */
-        if (config->entry_count) {
+        {
                 UINTN i;
 
                 for (i = config->entry_count-1; i >= 0; i--) {
