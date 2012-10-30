@@ -17,7 +17,8 @@ CFLAGS = \
 	-fshort-wchar \
 	-nostdinc \
 	-ffreestanding \
-	-fno-stack-protector
+	-fno-stack-protector \
+	-Wsign-compare
 
 ifeq ($(ARCH),x86_64)
 CFLAGS += \

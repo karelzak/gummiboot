@@ -105,14 +105,14 @@ static EFI_STATUS efivar_get(CHAR16 *name, CHAR16 **value) {
 
 }
 
-static EFI_STATUS efivar_set_int(CHAR16 *name, INTN i, BOOLEAN persistent) {
+static EFI_STATUS efivar_set_int(CHAR16 *name, UINTN i, BOOLEAN persistent) {
         CHAR16 str[32];
 
         SPrint(str, 32, L"%d", i);
         return efivar_set(name, str, persistent);
 }
 
-static EFI_STATUS efivar_get_int(CHAR16 *name, INTN *i) {
+static EFI_STATUS efivar_get_int(CHAR16 *name, UINTN *i) {
         CHAR16 *val;
         EFI_STATUS err;
 
@@ -318,7 +318,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
 
 static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         UINTN index;
-        INTN i;
+        UINTN i;
         CHAR16 *s;
 
         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
@@ -438,14 +438,14 @@ static EFI_STATUS console_text_mode(VOID) {
 
 static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *loaded_image_path) {
         EFI_STATUS err;
-        INTN visible_max;
-        INTN idx_highlight;
-        INTN idx_highlight_prev;
-        INTN idx_first;
-        INTN idx_last;
+        UINTN visible_max;
+        UINTN idx_highlight;
+        UINTN idx_highlight_prev;
+        UINTN idx_first;
+        UINTN idx_last;
         BOOLEAN refresh;
         BOOLEAN highlight;
-        INTN i;
+        UINTN i;
         UINTN line_width;
         CHAR16 **lines;
         UINTN x_max;
@@ -529,7 +529,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut,
                                                           EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[i]);
-                                if (i == config->idx_default_efivar) {
+                                if ((INTN)i == config->idx_default_efivar) {
                                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, i - idx_first);
                                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
                                 }
@@ -539,7 +539,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight_prev - idx_first);
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight_prev]);
-                        if (idx_highlight_prev == config->idx_default_efivar) {
+                        if ((INTN)idx_highlight_prev == config->idx_default_efivar) {
                                 uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight_prev - idx_first);
                                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
                         }
@@ -547,7 +547,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight - idx_first);
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_BLACK|EFI_BACKGROUND_LIGHTGRAY);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight]);
-                        if (idx_highlight == config->idx_default_efivar) {
+                        if ((INTN)idx_highlight == config->idx_default_efivar) {
                                 uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight - idx_first);
                                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
                         }
@@ -657,7 +657,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         run = FALSE;
                         break;
                 case 'd':
-                        if (config->idx_default_efivar != idx_highlight) {
+                        if (config->idx_default_efivar != (INTN)idx_highlight) {
                                 /* store the selected entry in a persistent EFI variable */
                                 efivar_set(L"LoaderEntryDefault", config->entries[idx_highlight]->file, TRUE);
                                 config->idx_default_efivar = idx_highlight;
@@ -1170,7 +1170,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
         EFI_FILE_HANDLE entries_dir;
         EFI_STATUS err;
         CHAR8 *content = NULL;
-        INTN sec;
+        UINTN sec;
         UINTN len;
         UINTN i;
 
