@@ -1298,7 +1298,8 @@ static VOID config_default_entry_select(Config *config) {
          * entry (largest number) matching the given pattern.
          */
         if (config->entry_default_pattern) {
-                for (i = config->entry_count-1; i >= 0; i--) {
+                i = config->entry_count;
+                while (i--) {
                         if (config->entries[i]->no_autoselect)
                                 continue;
                         if (MetaiMatch(config->entries[i]->file, config->entry_default_pattern)) {
@@ -1309,7 +1310,8 @@ static VOID config_default_entry_select(Config *config) {
         }
 
         /* select the last entry */
-        for (i = config->entry_count-1; i >= 0; i--) {
+        i = config->entry_count;
+        while (i--) {
                 if (config->entries[i]->no_autoselect)
                         continue;
                 config->idx_default = i;
