@@ -949,8 +949,8 @@ static CHAR8 *line_get_key_value(CHAR8 *line, CHAR8 **key_ret, CHAR8 **value_ret
         CHAR8 *key, *value;
         UINTN linelen;
 
-        /* terminate */
 skip:
+        /* terminate */
         next = line;
         while (*next && !strchra((CHAR8 *)"\n\r", *next))
                 next++;
@@ -966,7 +966,7 @@ skip:
                 next++;
 
         /* trailing whitespace */
-        while (linelen && strchra((CHAR8 *)" \t", line[linelen-1]))
+        while (linelen > 0 && strchra((CHAR8 *)" \t", line[linelen-1]))
                 linelen--;
         line[linelen] = '\0';
 
@@ -1169,7 +1169,7 @@ out:
 static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path) {
         EFI_FILE_HANDLE entries_dir;
         EFI_STATUS err;
-        CHAR8 *content;
+        CHAR8 *content = NULL;
         INTN sec;
         UINTN len;
         UINTN i;
@@ -1192,7 +1192,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
                         CHAR16 buf[256];
                         UINTN bufsize;
                         EFI_FILE_INFO *f;
-                        CHAR8 *content;
+                        CHAR8 *content = NULL;
                         UINTN len;
 
                         bufsize = sizeof(buf);
