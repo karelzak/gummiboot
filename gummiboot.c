@@ -944,44 +944,48 @@ static CHAR8 *strchra(CHAR8 *s, CHAR8 c) {
         return NULL;
 }
 
-static CHAR8 *line_get_key_value(CHAR8 *line, CHAR8 **key_ret, CHAR8 **value_ret) {
-        CHAR8 *next;
-        CHAR8 *key, *value;
+static CHAR8 *line_get_key_value(CHAR8 *content, UINTN *pos, CHAR8 **key_ret, CHAR8 **value_ret) {
+        CHAR8 *line;
         UINTN linelen;
+        CHAR8 *value;
 
 skip:
-        /* terminate */
-        next = line;
-        while (*next && !strchra((CHAR8 *)"\n\r", *next))
-                next++;
-        *next = '\0';
-
-        linelen = next - line;
-        if (linelen == 0)
+        line = content + *pos;
+        if (*line == '\0')
                 return NULL;
 
-        /* next line */
-        next++;
-        while (*next && strchra((CHAR8 *)"\n\r", *next))
-                next++;
+        linelen = 0;
+        while (line[linelen] && !strchra((CHAR8 *)"\n\r", line[linelen]))
+               linelen++;
 
-        /* trailing whitespace */
+        /* move pos to next line */
+        *pos += linelen;
+        if (content[*pos])
+                (*pos)++;
+
+        /* empty line */
+        if (linelen == 0)
+                goto skip;
+
+        /* terminate line */
+        line[linelen] = '\0';
+
+        /* remove leading whitespace */
+        while (strchra((CHAR8 *)" \t", *line)) {
+                line++;
+                linelen--;
+        }
+
+        /* remove trailing whitespace */
         while (linelen > 0 && strchra((CHAR8 *)" \t", line[linelen-1]))
                 linelen--;
         line[linelen] = '\0';
 
-        /* leading whitespace */
-        while (strchra((CHAR8 *)" \t", *line))
-                line++;
-
-        key = line;
-        line = next;
-
-        if (*key == '#')
+        if (*line == '#')
                 goto skip;
 
         /* split key/value */
-        value = key;
+        value = line;
         while (*value && !strchra((CHAR8 *)" \t", *value))
                 value++;
         if (*value == '\0')
@@ -991,17 +995,18 @@ skip:
         while (*value && strchra((CHAR8 *)" \t", *value))
                 value++;
 
-        *key_ret = key;
+        *key_ret = line;
         *value_ret = value;
-        return next;
+        return line;
 }
 
 static VOID config_defaults_load_from_file(Config *config, CHAR8 *content) {
         CHAR8 *line;
+        UINTN pos = 0;
         CHAR8 *key, *value;
 
         line = content;
-        while ((line = line_get_key_value(line, &key, &value))) {
+        while ((line = line_get_key_value(content, &pos, &key, &value))) {
                 if (strcmpa((CHAR8 *)"timeout", key) == 0) {
                         CHAR16 *s;
 
@@ -1022,6 +1027,7 @@ static VOID config_defaults_load_from_file(Config *config, CHAR8 *content) {
 static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR16 *file, CHAR8 *content, CHAR16 *loaded_image_path) {
         ConfigEntry *entry;
         CHAR8 *line;
+        UINTN pos = 0;
         CHAR8 *key, *value;
         UINTN len;
         CHAR16 *initrd = NULL;
@@ -1029,7 +1035,7 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         entry = AllocateZeroPool(sizeof(ConfigEntry));
 
         line = content;
-        while ((line = line_get_key_value(line, &key, &value))) {
+        while ((line = line_get_key_value(content, &pos, &key, &value))) {
                 if (strcmpa((CHAR8 *)"title", key) == 0) {
                         FreePool(entry->title);
                         entry->title = stra_to_str(value);
