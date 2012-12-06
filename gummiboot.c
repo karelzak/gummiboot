@@ -26,6 +26,10 @@
 #include "efi.h"
 #include "efilib.h"
 
+#ifndef EFI_SECURITY_VIOLATION
+#define EFI_SECURITY_VIOLATION      EFIERR(26)
+#endif
+
 /*
  * Allocated random UUID, intended to be shared across tools that implement
  * the (ESP)\loader\entries\<vendor>-<revision>.conf convention and the
@@ -1626,15 +1630,27 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 /* export the selected boot entry to the system */
                 efivar_set(L"LoaderEntrySelected", entry->file, FALSE);
 
-                image_start(image, &config, entry);
+                err = image_start(image, &config, entry);
+
+                if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) {
+                        /* Platform is secure boot and requested image isn't
+                         * trusted. Need to go back to prior boot system and
+                         * install more keys or hashes. Signal failure by
+                         * returning the error */
+                        Print(L"\nImage %s gives a security error\n", entry->title);
+                        Print(L"Please enrol the hash or signature of %s\n", entry->loader);
+                        uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
+                        goto out;
+                }
 
                 menu = TRUE;
                 config.timeout_sec = 0;
         }
+        err = EFI_SUCCESS;
 out:
         FreePool(loaded_image_path);
         config_free(&config);
         uefi_call_wrapper(root_dir->Close, 1, root_dir);
         uefi_call_wrapper(BS->CloseProtocol, 4, image, &LoadedImageProtocol, image, NULL);
-        return uefi_call_wrapper(BS->Exit, 4, image, EFI_SUCCESS, 0, NULL);
+        return err;
 }
