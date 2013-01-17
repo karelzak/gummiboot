@@ -1,4 +1,4 @@
-VERSION=9
+VERSION=10
 
 ARCH=$(shell $(CC) -dumpmachine | sed "s/\(-\).*$$//")
 LIBDIR=$(shell echo $$(cd /usr/lib/$$(gcc -print-multi-os-directory); pwd))
@@ -50,6 +50,12 @@ gummiboot.o: gummiboot.c Makefile
 
 clean:
 	rm -f gummiboot.o gummiboot.so gummiboot.efi
+
+tar:
+	mkdir gummiboot-$(VERSION)
+	cp -l gummiboot.c Makefile loader-postinst.sh README LICENSE gummiboot-$(VERSION)
+	tar -cJf gummiboot-$(VERSION).tar.xz gummiboot-$(VERSION)
+	rm -rf gummiboot-$(VERSION)
 
 test: gummiboot.efi
 	@# UUID=677B-ECF2 /boot vfat noauto,umask=0077,x-systemd.automount,x-gvfs-hide 1 2
