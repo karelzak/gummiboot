@@ -26,6 +26,9 @@
 #include "efi.h"
 #include "efilib.h"
 
+#define _stringify(s) #s
+#define stringify(s) _stringify(s)
+
 #ifndef EFI_SECURITY_VIOLATION
 #define EFI_SECURITY_VIOLATION      EFIERR(26)
 #endif
@@ -328,7 +331,7 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
         uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
 
-        Print(L"gummiboot version:      %d\n", VERSION);
+        Print(L"gummiboot version:      " stringify(VERSION) "\n");
         Print(L"loaded image:           %s\n", loaded_image_path);
         Print(L"UEFI version:           %d.%02d\n", ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
         Print(L"firmware vendor:        %s\n", ST->FirmwareVendor);
@@ -358,6 +361,10 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
                 Print(L"LoaderDeviceIdentifier: %s\n", s);
                 FreePool(s);
         }
+        if (efivar_get(L"LoaderDevicePartUUID", &s) == EFI_SUCCESS) {
+                Print(L"LoaderDevicePartUUID:   %s\n", s);
+                FreePool(s);
+        }
         if (efivar_get(L"LoaderEntryDefault", &s) == EFI_SUCCESS) {
                 Print(L"LoaderEntryDefault:     %s\n", s);
                 FreePool(s);
@@ -381,8 +388,13 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
                 if (entry->title_machine)
                         Print(L"title machine           '%s'\n", entry->title_machine);
                 device_path = DevicePathFromHandle(entry->device);
-                if (device_path)
+                if (device_path) {
+                        UINT16 *str;
+
+                        str = DevicePathToStr(device_path);
                         Print(L"device handle           '%s'\n", DevicePathToStr(device_path));
+                        FreePool(str);
+                }
                 Print(L"loader                  '%s'\n", entry->loader);
                 if (entry->options)
                         Print(L"options                 '%s'\n", entry->options);
@@ -717,8 +729,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
                         break;
                 case 'v':
-                        status = PoolPrint(L"gummiboot %d, UEFI %d.%02d, %s %d.%02d",
-                                           VERSION,
+                        status = PoolPrint(L"gummiboot " stringify(VERSION) ", UEFI %d.%02d, %s %d.%02d",
                                            ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff,
                                            ST->FirmwareVendor, ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
                         break;
@@ -1559,6 +1570,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         ticks = ticks_read();
         InitializeLib(image, sys_table);
+        efivar_set(L"LoaderVersion", L"gummiboot " stringify(VERSION), FALSE);
         efivar_set_ticks(L"LoaderTicksInit", ticks);
 
         err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
@@ -1571,8 +1583,32 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         /* export the device path this image is started from */
         device_path = DevicePathFromHandle(loaded_image->DeviceHandle);
-        if (device_path)
-                efivar_set(L"LoaderDeviceIdentifier", DevicePathToStr(device_path), FALSE);
+        if (device_path) {
+                CHAR16 *str;
+                EFI_DEVICE_PATH *path, *paths;
+
+                str = DevicePathToStr(device_path);
+                efivar_set(L"LoaderDeviceIdentifier", str, FALSE);
+                FreePool(str);
+
+                paths = UnpackDevicePath(device_path);
+                for (path = paths; !IsDevicePathEnd(path); path = NextDevicePathNode(path)) {
+                        HARDDRIVE_DEVICE_PATH *drive;
+                        CHAR16 uuid[37];
+
+                        if (DevicePathType(path) != MEDIA_DEVICE_PATH)
+                                continue;
+                        if (DevicePathSubType(path) != MEDIA_HARDDRIVE_DP)
+                                continue;
+                        drive = (HARDDRIVE_DEVICE_PATH *)path;
+                        if (drive->SignatureType != SIGNATURE_TYPE_GUID)
+                                continue;
+
+                        GuidToString(uuid, (EFI_GUID *)&drive->Signature);
+                        efivar_set(L"LoaderDevicePartUUID", uuid, FALSE);
+                }
+                FreePool(paths);
+        }
 
         root_dir = LibOpenRoot(loaded_image->DeviceHandle);
         if (!root_dir) {

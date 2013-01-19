@@ -12,11 +12,13 @@ CPPFLAGS = \
 CFLAGS = \
 	-DVERSION=$(VERSION) \
 	-Wall \
+	-nostdinc \
 	-ggdb -O0 \
 	-fpic \
 	-fshort-wchar \
 	-nostdinc \
 	-ffreestanding \
+	-fno-strict-aliasing \
 	-fno-stack-protector \
 	-Wsign-compare
 
