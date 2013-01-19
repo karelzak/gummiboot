@@ -1606,6 +1606,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
                         GuidToString(uuid, (EFI_GUID *)&drive->Signature);
                         efivar_set(L"LoaderDevicePartUUID", uuid, FALSE);
+                        break;
                 }
                 FreePool(paths);
         }
