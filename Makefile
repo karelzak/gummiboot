@@ -54,10 +54,7 @@ clean:
 	rm -f gummiboot.o gummiboot.so gummiboot.efi
 
 tar:
-	mkdir gummiboot-$(VERSION)
-	cp -l gummiboot.c Makefile loader-postinst.sh README LICENSE gummiboot-$(VERSION)
-	tar -cJf gummiboot-$(VERSION).tar.xz gummiboot-$(VERSION)
-	rm -rf gummiboot-$(VERSION)
+	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
 
 test: gummiboot.efi
 	@# UUID=677B-ECF2 /boot vfat noauto,umask=0077,x-systemd.automount,x-gvfs-hide 1 2
