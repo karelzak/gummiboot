@@ -1046,7 +1046,6 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         CHAR8 *key, *value;
         UINTN len;
         CHAR16 *initrd = NULL;
-        CHAR16 *str;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
 
@@ -1147,40 +1146,44 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         }
         FreePool(initrd);
 
-        /* append additional options from EFI variables for this machine-id */
-        str = PoolPrint(L"LoaderEntryOptions-%s", entry->machine_id);
-        if (str) {
-                CHAR16 *s;
+        if (entry->machine_id) {
+                CHAR16 *var;
 
-                if (efivar_get(str, &s) == EFI_SUCCESS) {
-                        if (entry->options) {
-                                CHAR16 *s2;
+                /* append additional options from EFI variables for this machine-id */
+                var = PoolPrint(L"LoaderEntryOptions-%s", entry->machine_id);
+                if (var) {
+                        CHAR16 *s;
 
-                                s2 = PoolPrint(L"%s %s", entry->options, s);
-                                FreePool(entry->options);
-                                entry->options = s2;
-                        } else
-                                entry->options = s;
+                        if (efivar_get(var, &s) == EFI_SUCCESS) {
+                                if (entry->options) {
+                                        CHAR16 *s2;
+
+                                        s2 = PoolPrint(L"%s %s", entry->options, s);
+                                        FreePool(entry->options);
+                                        entry->options = s2;
+                                } else
+                                        entry->options = s;
+                        }
+                        FreePool(var);
                 }
-                FreePool(str);
-        }
 
-        str = PoolPrint(L"LoaderEntryOptionsOneShot-%s", entry->machine_id);
-        if (str) {
-                CHAR16 *s;
+                var = PoolPrint(L"LoaderEntryOptionsOneShot-%s", entry->machine_id);
+                if (var) {
+                        CHAR16 *s;
 
-                if (efivar_get(str, &s) == EFI_SUCCESS) {
-                        if (entry->options) {
-                                CHAR16 *s2;
+                        if (efivar_get(var, &s) == EFI_SUCCESS) {
+                                if (entry->options) {
+                                        CHAR16 *s2;
 
-                                s2 = PoolPrint(L"%s %s", entry->options, s);
-                                FreePool(entry->options);
-                                entry->options = s2;
-                        } else
-                                entry->options = s;
-                        efivar_set(str, NULL, TRUE);
+                                        s2 = PoolPrint(L"%s %s", entry->options, s);
+                                        FreePool(entry->options);
+                                        entry->options = s2;
+                                } else
+                                        entry->options = s;
+                                efivar_set(var, NULL, TRUE);
+                        }
+                        FreePool(var);
                 }
-                FreePool(str);
         }
 
         entry->device = device;
