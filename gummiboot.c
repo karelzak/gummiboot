@@ -70,6 +70,7 @@ typedef struct {
         INTN timeout_sec_efivar;
         CHAR16 *entry_default_pattern;
         CHAR16 *options_edit;
+        CHAR16 *entries_auto;
 } Config;
 
 #ifdef __x86_64__
@@ -1493,20 +1494,20 @@ static VOID config_title_generate(Config *config) {
         }
 }
 
-static VOID config_entry_add_loader(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
-                                    CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
+static BOOLEAN config_entry_add_loader(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
+                                       CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
         EFI_FILE_HANDLE handle;
         EFI_STATUS err;
         ConfigEntry *entry;
 
         /* do not add an entry for ourselves */
         if (loaded_image_path && StriCmp(loader, loaded_image_path) == 0)
-                return;
+                return FALSE;
 
         /* check existence */
         err = uefi_call_wrapper(root_dir->Open, 5, root_dir, &handle, loader, EFI_FILE_MODE_READ, 0);
         if (EFI_ERROR(err))
-                return;
+                return FALSE;
         uefi_call_wrapper(handle->Close, 1, handle);
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
@@ -1517,6 +1518,23 @@ static VOID config_entry_add_loader(Config *config, EFI_HANDLE *device, EFI_FILE
         StrLwr(entry->file);
         entry->no_autoselect = TRUE;
         config_add_entry(config, entry);
+        return TRUE;
+}
+
+static VOID config_entry_add_loader_auto(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
+                                         CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
+        if (!config_entry_add_loader(config, device, root_dir, loaded_image_path, file, title, loader))
+                return;
+
+        /* export identifiers of automatically added entries */
+        if (config->entries_auto) {
+                CHAR16 *s;
+
+                s = PoolPrint(L"%s %s", config->entries_auto, file);
+                FreePool(config->entries_auto);
+                config->entries_auto = s;
+        } else
+                config->entries_auto = StrDuplicate(file);
 }
 
 static VOID config_entry_add_osx(Config *config) {
@@ -1534,8 +1552,8 @@ static VOID config_entry_add_osx(Config *config) {
                         root = LibOpenRoot(handles[i]);
                         if (!root)
                                 continue;
-                        config_entry_add_loader(config, handles[i], root, NULL, L"builtin-osx", L"OS X",
-                                                L"\\System\\Library\\CoreServices\\boot.efi");
+                        config_entry_add_loader_auto(config, handles[i], root, NULL, L"auto-osx", L"OS X",
+                                                     L"\\System\\Library\\CoreServices\\boot.efi");
                         uefi_call_wrapper(root->Close, 1, root);
                 }
 
@@ -1600,6 +1618,7 @@ static VOID config_free(Config *config) {
         FreePool(config->entries);
         FreePool(config->entry_default_pattern);
         FreePool(config->options_edit);
+        FreePool(config->entries_auto);
 }
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
@@ -1669,13 +1688,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_load(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path);
 
         /* if we find some well-known loaders, add them to the end of the list */
-        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
-                                L"builtin-bootmgfw", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
-        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
-                                L"builtin-shellx64", L"EFI Shell", L"\\shellx64.efi");
-        config_entry_add_loader(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
-                                L"builtin-bootx64", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
+        config_entry_add_loader_auto(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
+                                     L"auto-windows", L"Windows Boot Manager", L"\\EFI\\Microsoft\\Boot\\bootmgfw.efi");
+        config_entry_add_loader_auto(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
+                                     L"auto-efi-shell", L"EFI Shell", L"\\shellx64.efi");
+        config_entry_add_loader_auto(&config, loaded_image->DeviceHandle, root_dir, loaded_image_path,
+                                     L"auto-efi-default", L"EFI Default Loader", L"\\EFI\\BOOT\\BOOTX64.EFI");
         config_entry_add_osx(&config);
+        efivar_set(L"LoaderEntriesAuto", config.entries_auto, FALSE);
 
         config_title_generate(&config);
 
