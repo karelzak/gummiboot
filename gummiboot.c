@@ -1147,6 +1147,42 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         }
         FreePool(initrd);
 
+        /* append additional options from EFI variables for this machine-id */
+        str = PoolPrint(L"LoaderEntryOptions-%s", entry->machine_id);
+        if (str) {
+                CHAR16 *s;
+
+                if (efivar_get(str, &s) == EFI_SUCCESS) {
+                        if (entry->options) {
+                                CHAR16 *s2;
+
+                                s2 = PoolPrint(L"%s %s", entry->options, s);
+                                FreePool(entry->options);
+                                entry->options = s2;
+                        } else
+                                entry->options = s;
+                }
+                FreePool(str);
+        }
+
+        str = PoolPrint(L"LoaderEntryOptionsOneShot-%s", entry->machine_id);
+        if (str) {
+                CHAR16 *s;
+
+                if (efivar_get(str, &s) == EFI_SUCCESS) {
+                        if (entry->options) {
+                                CHAR16 *s2;
+
+                                s2 = PoolPrint(L"%s %s", entry->options, s);
+                                FreePool(entry->options);
+                                entry->options = s2;
+                        } else
+                                entry->options = s;
+                        efivar_set(str, NULL, TRUE);
+                }
+                FreePool(str);
+        }
+
         entry->device = device;
         entry->file = StrDuplicate(file);
         len = StrLen(entry->file);
