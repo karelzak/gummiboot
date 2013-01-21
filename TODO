@@ -1,15 +1,1 @@
-* add option for loader.conf to lock down: menu, (e)dit, (d)efault, (*)dump ?
-  --> silly "protection" against init=/bin/sh and the visibility of passwords
-
-* postinst: never touch *any* unrelated fragment file, only the one for the
-  specific kernel install/removal -> do not try to be smart
-
-* avoid to suggest to install non-admin files in /etc (/etc/kernel/post...)
-  -> it's 2012, /etc is not for static stuff, it's *local* admin territory
-
-* Turn postinst into a full-featured loaderctl", which could live in /usr/bin
-  and which supports: create/update/delete conf fragment, update/cleanup
-  all fragments belonging to this machine.
-
-* properly document the config file format, directory layout and EFI variable
-  in the wiki; make it more look like a spec -> easier to adapt other loaders
+- export automatically added built-in config entry names
