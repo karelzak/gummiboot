@@ -50,8 +50,8 @@ typedef struct {
         CHAR16 *file;
         CHAR16 *title_show;
         CHAR16 *title;
-        CHAR16 *title_version;
-        CHAR16 *title_machine;
+        CHAR16 *version;
+        CHAR16 *machine_id;
         EFI_HANDLE *device;
         enum loader_type type;
         CHAR16 *loader;
@@ -369,6 +369,7 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
                 Print(L"LoaderEntryDefault:     %s\n", s);
                 FreePool(s);
         }
+
         Print(L"\n--- press key ---\n\n");
         uefi_call_wrapper(BS->WaitForEvent, 3, 1, &ST->ConIn->WaitForKey, &index);
         uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
@@ -376,6 +377,7 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         for (i = 0; i < config->entry_count; i++) {
                 ConfigEntry *entry;
                 EFI_DEVICE_PATH *device_path;
+                CHAR16 *str;
 
                 entry = config->entries[i];
                 Print(L"config entry:           %d/%d\n", i+1, config->entry_count);
@@ -383,14 +385,12 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
                 Print(L"title show              '%s'\n", entry->title_show);
                 if (entry->title)
                         Print(L"title                   '%s'\n", entry->title);
-                if (entry->title_version)
-                        Print(L"title version           '%s'\n", entry->title_version);
-                if (entry->title_machine)
-                        Print(L"title machine           '%s'\n", entry->title_machine);
+                if (entry->version)
+                        Print(L"version                 '%s'\n", entry->version);
+                if (entry->machine_id)
+                        Print(L"machine-id              '%s'\n", entry->machine_id);
                 device_path = DevicePathFromHandle(entry->device);
                 if (device_path) {
-                        UINT16 *str;
-
                         str = DevicePathToStr(device_path);
                         Print(L"device handle           '%s'\n", DevicePathToStr(device_path));
                         FreePool(str);
@@ -769,7 +769,7 @@ static VOID config_add_entry(Config *config, ConfigEntry *entry) {
 static VOID config_entry_free(ConfigEntry *entry) {
         FreePool(entry->title_show);
         FreePool(entry->title);
-        FreePool(entry->title_machine);
+        FreePool(entry->machine_id);
         FreePool(entry->loader);
         FreePool(entry->options);
 }
@@ -1046,6 +1046,7 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         CHAR8 *key, *value;
         UINTN len;
         CHAR16 *initrd = NULL;
+        CHAR16 *str;
 
         entry = AllocateZeroPool(sizeof(ConfigEntry));
 
@@ -1057,15 +1058,15 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
                         continue;
                 }
 
-                if (strcmpa((CHAR8 *)"title-version", key) == 0) {
-                        FreePool(entry->title_version);
-                        entry->title_version = stra_to_str(value);
+                if (strcmpa((CHAR8 *)"version", key) == 0) {
+                        FreePool(entry->version);
+                        entry->version = stra_to_str(value);
                         continue;
                 }
 
-                if (strcmpa((CHAR8 *)"title-machine", key) == 0) {
-                        FreePool(entry->title_machine);
-                        entry->title_machine = stra_to_str(value);
+                if (strcmpa((CHAR8 *)"machine-id", key) == 0) {
+                        FreePool(entry->machine_id);
+                        entry->machine_id = stra_to_str(value);
                         continue;
                 }
 
@@ -1380,10 +1381,10 @@ static VOID config_title_generate(Config *config) {
 
                 if (!config->entries[i]->non_unique)
                         continue;
-                if (!config->entries[i]->title_version)
+                if (!config->entries[i]->version)
                         continue;
 
-                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->title_version);
+                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->version);
                 FreePool(config->entries[i]->title_show);
                 config->entries[i]->title_show = s;
                 config->entries[i]->non_unique = FALSE;
@@ -1408,16 +1409,20 @@ static VOID config_title_generate(Config *config) {
         /* add machine-id to non-unique titles */
         for (i = 0; i < config->entry_count; i++) {
                 CHAR16 *s;
+                CHAR16 *m;
 
                 if (!config->entries[i]->non_unique)
                         continue;
-                if (!config->entries[i]->title_machine)
+                if (!config->entries[i]->machine_id)
                         continue;
 
-                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, config->entries[i]->title_machine);
+                m = StrDuplicate(config->entries[i]->machine_id);
+                m[8] = '\0';
+                s = PoolPrint(L"%s (%s)", config->entries[i]->title_show, m);
                 FreePool(config->entries[i]->title_show);
                 config->entries[i]->title_show = s;
                 config->entries[i]->non_unique = FALSE;
+                FreePool(m);
         }
 
         unique = TRUE;
@@ -1572,7 +1577,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         InitializeLib(image, sys_table);
         efivar_set(L"LoaderVersion", L"gummiboot " stringify(VERSION), FALSE);
         efivar_set_ticks(L"LoaderTicksInit", ticks);
-
         err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
                                 image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(err)) {

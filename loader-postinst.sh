@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This is a script to be called automatically by new-kernel-pkg as
-# /etc/kernel/postinst.d/loader-postinst.sh
+# This script is called automatically by new-kernel-pkg as
+# /etc/kernel/postinst.d/loader-postinst.sh (Fedora)
 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
@@ -80,12 +80,12 @@ cp --preserve "$KERNEL_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
 [[ $INITRD_IMAGE ]] && cp --preserve "$INITRD_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
 
 {
-        echo "title         $PRETTY_NAME"
-        echo "title-version $KERNEL_VERSION"
-        echo "title-machine ${MACHINE_ID:0:8}"
-        echo "options       $BOOT_OPTIONS"
-        echo "linux         /$ID/$MACHINE_ID/${KERNEL_IMAGE##*/}"
-        [[ $INITRD_IMAGE ]] && echo "initrd        /${ID}/${MACHINE_ID}/${INITRD_IMAGE##*/}"
+        echo "title      $PRETTY_NAME"
+        echo "version    $KERNEL_VERSION"
+        echo "machine-id $MACHINE_ID"
+        echo "options    $BOOT_OPTIONS"
+        echo "linux      /$ID/$MACHINE_ID/${KERNEL_IMAGE##*/}"
+        [[ $INITRD_IMAGE ]] && echo "initrd     /${ID}/${MACHINE_ID}/${INITRD_IMAGE##*/}"
 } > "${EFI_DIR}/loader/entries/${ID}-${KERNEL_VERSION}-${MACHINE_ID}.conf"
 
 if ! [[ -f ${EFI_DIR}/loader/loader.conf ]]; then
