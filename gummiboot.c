@@ -16,7 +16,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * Lesser General Public License for more details.
  *
- * Copyright (C) 2012 Kay Sievers <kay.sievers@vrfy.org>
+ * Copyright (C) 2013 Kay Sievers <kay@vrfy.org>
  * Copyright (C) 2012 Harald Hoyer <harald@redhat.com>
  *
  * "Any intelligent fool can make things bigger, more complex, and more violent."
@@ -635,8 +635,9 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         }
                         break;
                 case SCAN_PAGE_UP:
-                        idx_highlight -= visible_max;
-                        if (idx_highlight < 0)
+                        if (idx_highlight > visible_max)
+                                idx_highlight -= visible_max;
+                        else
                                 idx_highlight = 0;
                         break;
                 case SCAN_PAGE_DOWN:
@@ -1198,7 +1199,7 @@ static VOID config_entry_add_from_file(Config *config, EFI_HANDLE *device, CHAR1
         config_add_entry(config, entry);
 }
 
-static UINTN file_read(Config *config, EFI_FILE_HANDLE dir, const CHAR16 *name, CHAR8 **content) {
+static UINTN file_read(EFI_FILE_HANDLE dir, const CHAR16 *name, CHAR8 **content) {
         EFI_FILE_HANDLE handle;
         EFI_FILE_INFO *info;
         CHAR8 *buf;
@@ -1236,7 +1237,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
         UINTN len;
         UINTN i;
 
-        len = file_read(config, root_dir, L"\\loader\\loader.conf", &content);
+        len = file_read(root_dir, L"\\loader\\loader.conf", &content);
         if (len > 0)
                 config_defaults_load_from_file(config, content);
         FreePool(content);
@@ -1273,7 +1274,7 @@ static VOID config_load(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, 
                         if (StriCmp(f->FileName + len - 5, L".conf") != 0)
                                 continue;
 
-                        len = file_read(config, entries_dir, f->FileName, &content);
+                        len = file_read(entries_dir, f->FileName, &content);
                         if (len > 0)
                                 config_entry_add_from_file(config, device, f->FileName, content, loaded_image_path);
                         FreePool(content);

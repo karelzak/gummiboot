@@ -12,6 +12,7 @@ CPPFLAGS = \
 CFLAGS = \
 	-DVERSION=$(VERSION) \
 	-Wall \
+	-Wextra \
 	-nostdinc \
 	-ggdb -O0 \
 	-fpic \
