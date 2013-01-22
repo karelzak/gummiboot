@@ -343,7 +343,8 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         if (config->timeout_sec_efivar >= 0)
                 Print(L"timeout (EFI var):      %d\n", config->timeout_sec_efivar);
         Print(L"timeout (config):       %d\n", config->timeout_sec_config);
-        Print(L"default pattern:        '%s'\n", config->entry_default_pattern);
+        if (config->entry_default_pattern)
+                Print(L"default pattern:        '%s'\n", config->entry_default_pattern);
         Print(L"\n");
 
         Print(L"config entry count:     %d\n", config->entry_count);
