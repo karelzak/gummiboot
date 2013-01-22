@@ -33,6 +33,9 @@
 #define EFI_SECURITY_VIOLATION      EFIERR(26)
 #endif
 
+/* magic string to find in the binary image */
+static const char __attribute__((used)) magic[] = "#### gummiboot " stringify(VERSION) " ####";
+
 /*
  * Allocated random UUID, intended to be shared across tools that implement
  * the (ESP)\loader\entries\<vendor>-<revision>.conf convention and the
