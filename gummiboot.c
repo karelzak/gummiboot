@@ -16,7 +16,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * Lesser General Public License for more details.
  *
- * Copyright (C) 2013 Kay Sievers <kay@vrfy.org>
+ * Copyright (C) 2012-2013 Kay Sievers <kay@vrfy.org>
  * Copyright (C) 2012 Harald Hoyer <harald@redhat.com>
  *
  * "Any intelligent fool can make things bigger, more complex, and more violent."
@@ -121,7 +121,15 @@ static UINT64 cpufreq_read(void) {
         }
         brand.s[4 * 4 * 3] = '\0';
 
-        /* “x.xxyHz” or “xxxxyHz”, where y=M,G,T */
+        /*
+         * Extract:
+         *   “x.xxyHz” or “xxxxyHz”, where y=M,G,T
+         * from CPUID brand string:
+         *   Intel(R) Core(TM) i5-2540M CPU @ 2.60GHz
+         *
+         * http://www.intel.com/content/dam/www/public/us/en/documents/
+         *   application-notes/processor-identification-cpuid-instruction-note.pdf
+         */
         s = NULL;
         for (i = 4; i < (4 * 4 * 3) - 2; i++) {
                 if (brand.s[i+1] == 'H' && brand.s[i+2] == 'z') {
