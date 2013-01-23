@@ -76,14 +76,105 @@ typedef struct {
         CHAR16 *entries_auto;
 } Config;
 
+static CHAR16 *stra_to_str(CHAR8 *stra);
+
 #ifdef __x86_64__
-static UINT64 ticks_read() {
+static UINT64 ticks_read(void) {
         UINT64 a, d;
         __asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
         return (d << 32) | a;
 }
+
+static void cpuid_read(UINT32 info, UINT32 *eax, UINT32 *ebx, UINT32 *ecx, UINT32 *edx) {
+        *eax = info;
+        __asm__ volatile (
+                "mov %%ebx, %%edi;"
+                "cpuid;"
+                "mov %%ebx, %%esi;"
+                "mov %%edi, %%ebx;"
+                :"+a" (*eax), "=S" (*ebx), "=c" (*ecx), "=d" (*edx)
+                : :"edi"
+        );
+}
+
+static UINT64 cpufreq_read(void) {
+        UINT32 eax, ebx, ecx, edx;
+        union {
+                UINT32 i[3][4];
+                CHAR8 s[4 * 4 * 3 + 1];
+        } brand;
+        UINTN i;
+        CHAR8 *s;
+        UINT64 scale;
+        CHAR16 *str;
+        static UINT64 usec;
+
+        if (usec > 0)
+                return usec;
+
+        for (i = 0; i < 3; i++) {
+                cpuid_read(0x80000002 + i, &eax, &ebx, &ecx, &edx);
+                brand.i[i][0] = eax;
+                brand.i[i][1] = ebx;
+                brand.i[i][2] = ecx;
+                brand.i[i][3] = edx;
+        }
+        brand.s[4 * 4 * 3] = '\0';
+
+        /* “x.xxyHz” or “xxxxyHz”, where y=M,G,T */
+        s = NULL;
+        for (i = 4; i < (4 * 4 * 3) - 2; i++) {
+                if (brand.s[i+1] == 'H' && brand.s[i+2] == 'z') {
+                        s = brand.s + i;
+                        break;
+                }
+        }
+        if (!s)
+                return 0;
+
+        scale = 1000;
+        switch(*s){
+        case 'T':
+                scale *= 1000;
+        case 'G':
+                scale *= 1000;
+        case 'M':
+                scale *= 1000;
+                break;
+        default:
+                return 0;
+        }
+
+        s -= 4;
+        s[4] = '\0';
+        if (s[1] == '.') {
+                s[1] = s[0];
+                s++;
+                scale /= 100;
+        }
+
+        str = stra_to_str(s);
+        usec = Atoi(str) * scale;
+        FreePool(str);
+        return usec;
+}
+
+static UINT64 time_usec(void) {
+        UINT64 ticks;
+        UINT64 cpufreq;
+
+        ticks = ticks_read();
+        if (ticks == 0)
+                return 0;
+
+        cpufreq = cpufreq_read();
+        if (cpufreq == 0)
+                return 0;
+
+        return 1000 * 1000 * ticks / cpufreq;
+}
 #else
-static UINT64 ticks_read() { return 0; }
+static UINT64 time_usec(void) { return 0; }
 #endif
 
 static EFI_STATUS efivar_set(CHAR16 *name, CHAR16 *value, BOOLEAN persistent) {
@@ -135,15 +226,15 @@ static EFI_STATUS efivar_get_int(CHAR16 *name, UINTN *i) {
         return err;
 }
 
-static VOID efivar_set_ticks(CHAR16 *name, UINT64 ticks) {
+static VOID efivar_set_time_usec(CHAR16 *name, UINT64 usec) {
         CHAR16 str[32];
 
-        if (ticks == 0)
-                ticks = ticks_read();
-        if (ticks == 0)
+        if (usec == 0)
+                usec = time_usec();
+        if (usec == 0)
                 return;
 
-        SPrint(str, 32, L"%ld", ticks ? ticks : ticks_read());
+        SPrint(str, 32, L"%ld", usec);
         efivar_set(name, str, FALSE);
 }
 
@@ -892,7 +983,7 @@ static INTN utf8_to_16(CHAR8 *stra, CHAR16 *c) {
         return len;
 }
 
-CHAR16 *stra_to_str(CHAR8 *stra) {
+static CHAR16 *stra_to_str(CHAR8 *stra) {
         UINTN strlen;
         UINTN len;
         UINTN i;
@@ -920,7 +1011,7 @@ CHAR16 *stra_to_str(CHAR8 *stra) {
         return str;
 }
 
-CHAR16 *stra_to_path(CHAR8 *stra) {
+static CHAR16 *stra_to_path(CHAR8 *stra) {
         CHAR16 *str;
         UINTN strlen;
         UINTN len;
@@ -1606,7 +1697,7 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, const Config *config, con
                 loaded_image->LoadOptionsSize = (StrLen(loaded_image->LoadOptions)+1) * sizeof(CHAR16);
         }
 
-        efivar_set_ticks(L"LoaderTicksExec", 0);
+        efivar_set_time_usec(L"LoaderTimeExecUsec", 0);
         err = uefi_call_wrapper(BS->StartImage, 3, image, NULL, NULL);
 out_unload:
         uefi_call_wrapper(BS->UnloadImage, 1, image);
@@ -1633,13 +1724,13 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         EFI_DEVICE_PATH *device_path;
         EFI_STATUS err;
         Config config;
-        UINT64 ticks;
+        UINT64 init_usec;
         BOOLEAN menu = FALSE;
 
-        ticks = ticks_read();
         InitializeLib(image, sys_table);
+        init_usec = time_usec();
         efivar_set(L"LoaderVersion", L"gummiboot " stringify(VERSION), FALSE);
-        efivar_set_ticks(L"LoaderTicksInit", ticks);
+        efivar_set_time_usec(L"LoaderTimeInitUsec", init_usec);
         err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
                                 image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(err)) {
@@ -1727,7 +1818,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
                 entry = config.entries[config.idx_default];
                 if (menu) {
-                        efivar_set_ticks(L"LoaderTicksStartMenu", 0);
+                        efivar_set_time_usec(L"LoaderTimeMenuUsec", 0);
                         if (!menu_run(&config, &entry, loaded_image_path))
                                 break;
                 }
