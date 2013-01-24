@@ -1705,7 +1705,7 @@ static EFI_STATUS image_start(EFI_HANDLE parent_image, const Config *config, con
                 loaded_image->LoadOptionsSize = (StrLen(loaded_image->LoadOptions)+1) * sizeof(CHAR16);
         }
 
-        efivar_set_time_usec(L"LoaderTimeExecUsec", 0);
+        efivar_set_time_usec(L"LoaderTimeExecUSec", 0);
         err = uefi_call_wrapper(BS->StartImage, 3, image, NULL, NULL);
 out_unload:
         uefi_call_wrapper(BS->UnloadImage, 1, image);
@@ -1738,7 +1738,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         InitializeLib(image, sys_table);
         init_usec = time_usec();
         efivar_set(L"LoaderVersion", L"gummiboot " stringify(VERSION), FALSE);
-        efivar_set_time_usec(L"LoaderTimeInitUsec", init_usec);
+        efivar_set_time_usec(L"LoaderTimeInitUSec", init_usec);
         err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
                                 image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(err)) {
@@ -1826,7 +1826,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
                 entry = config.entries[config.idx_default];
                 if (menu) {
-                        efivar_set_time_usec(L"LoaderTimeMenuUsec", 0);
+                        efivar_set_time_usec(L"LoaderTimeMenuUSec", 0);
                         if (!menu_run(&config, &entry, loaded_image_path))
                                 break;
                 }
