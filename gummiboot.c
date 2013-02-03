@@ -256,7 +256,7 @@ static void cursor_left(UINTN *cursor, UINTN *first)
 
 static void cursor_right(UINTN *cursor, UINTN *first, UINTN x_max, UINTN len)
 {
-        if ((*cursor)+2 < x_max)
+        if ((*cursor)+1 < x_max)
                 (*cursor)++;
         else if ((*first) + (*cursor) < len)
                 (*first)++;
@@ -278,7 +278,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
         line = AllocatePool(size * sizeof(CHAR16));
         StrCpy(line, line_in);
         len = StrLen(line);
-        print = AllocatePool(x_max * sizeof(CHAR16));
+        print = AllocatePool((x_max+1) * sizeof(CHAR16));
 
         uefi_call_wrapper(ST->ConOut->EnableCursor, 2, ST->ConOut, TRUE);
 
@@ -293,8 +293,8 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                 UINTN i;
 
                 i = len - first;
-                if (i >= x_max-2)
-                        i = x_max-2;
+                if (i >= x_max-1)
+                        i = x_max-1;
                 CopyMem(print, line + first, i * sizeof(CHAR16));
                 print[i++] = ' ';
                 print[i] = '\0';
@@ -318,9 +318,9 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         continue;
                 case SCAN_END:
                         cursor = len;
-                        if (cursor >= x_max) {
-                                cursor = x_max-2;
-                                first = len - (x_max-2);
+                        if (cursor+1 >= x_max) {
+                                cursor = x_max-1;
+                                first = len - (x_max-1);
                         }
                         continue;
                 case SCAN_UP:
@@ -388,7 +388,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         if (cursor > 0 || first == 0)
                                 continue;
                         /* show full line if it fits */
-                        if (len < x_max-2) {
+                        if (len < x_max) {
                                 cursor = first;
                                 first = 0;
                                 continue;
@@ -412,7 +412,7 @@ static BOOLEAN line_edit(CHAR16 *line_in, CHAR16 **line_out, UINTN x_max, UINTN 
                         line[first + cursor] = key.UnicodeChar;
                         len++;
                         line[len] = '\0';
-                        if (cursor+2 < x_max)
+                        if (cursor+1 < x_max)
                                 cursor++;
                         else if (first + cursor < len)
                                 first++;
@@ -568,6 +568,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
         UINTN i;
         UINTN line_width;
         CHAR16 **lines;
+        UINTN x_start;
+        UINTN y_start;
         UINTN x_max;
         UINTN y_max;
         CHAR16 *status;
@@ -575,6 +577,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
         INTN timeout_remain;
         BOOLEAN exit = FALSE;
         BOOLEAN run = TRUE;
+        const CHAR16 *TRIANGLE = L"\x25ba";
 
         console_text_mode();
         uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
@@ -587,8 +590,6 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                 x_max = 80;
                 y_max = 25;
         }
-        /* reserve some space at the beginning of the line and for the cursor at the end */
-        x_max-=3;
 
         /* we check 10 times per second for a keystroke */
         if (config->timeout_sec > 0)
@@ -611,8 +612,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
         refresh = TRUE;
         highlight = FALSE;
 
-        /* length of higlighted selector bar */
-        line_width = 20;
+        /* length of the longest entry */
+        line_width = 5;
         for (i = 0; i < config->entry_count; i++) {
                 UINTN entry_len;
 
@@ -620,13 +621,32 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                 if (line_width < entry_len)
                         line_width = entry_len;
         }
-        if (line_width > x_max)
-                line_width = x_max;
+        if (line_width > x_max-4)
+                line_width = x_max-4;
+
+        /* offsets to center the entries on the screen */
+        x_start = (x_max - (line_width)) / 2;
+        if (config->entry_count < visible_max)
+                y_start = ((visible_max - config->entry_count) / 2) + 1;
+        else
+                y_start = 0;
 
         /* menu entries title lines */
         lines = AllocatePool(sizeof(CHAR16 *) * config->entry_count);
-        for (i = 0; i < config->entry_count; i++)
-                lines[i] = PoolPrint(L"  %-.*s  ", line_width, config->entries[i]->title_show);
+        for (i = 0; i < config->entry_count; i++) {
+                UINTN j, k;
+
+                lines[i] = AllocatePool(((x_max+1) * sizeof(CHAR16)));
+                for (j = 0; j < x_start; j++)
+                        lines[i][j] = ' ';
+
+                for (k = 0; config->entries[i]->title_show[k] != '\0' && j < x_max; j++, k++)
+                        lines[i][j] = config->entries[i]->title_show[k];
+
+                for (; j < x_max; j++)
+                        lines[i][j] = ' ';
+                lines[i][x_max] = '\0';
+        }
 
         status = NULL;
         clearline = AllocatePool((x_max+1) * sizeof(CHAR16));
@@ -641,7 +661,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         for (i = 0; i < config->entry_count; i++) {
                                 if (i < idx_first || i > idx_last)
                                         continue;
-                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, i - idx_first);
+                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_start + i - idx_first);
                                 if (i == idx_highlight)
                                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut,
                                                           EFI_BLACK|EFI_BACKGROUND_LIGHTGRAY);
@@ -650,41 +670,51 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                                                           EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[i]);
                                 if ((INTN)i == config->idx_default_efivar) {
-                                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, i - idx_first);
-                                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
+                                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + i - idx_first);
+                                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
                                 }
                         }
                         refresh = FALSE;
                 } else if (highlight) {
-                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight_prev - idx_first);
+                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_start + idx_highlight_prev - idx_first);
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight_prev]);
                         if ((INTN)idx_highlight_prev == config->idx_default_efivar) {
-                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight_prev - idx_first);
-                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
+                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + idx_highlight_prev - idx_first);
+                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
                         }
 
-                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight - idx_first);
+                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_start + idx_highlight - idx_first);
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_BLACK|EFI_BACKGROUND_LIGHTGRAY);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight]);
                         if ((INTN)idx_highlight == config->idx_default_efivar) {
-                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, idx_highlight - idx_first);
-                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"*");
+                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + idx_highlight - idx_first);
+                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
                         }
                         highlight = FALSE;
                 }
 
                 if (timeout_remain > 0) {
                         FreePool(status);
-                        status = PoolPrint(L"Boot in %d seconds.", (timeout_remain + 5) / 10);
+                        status = PoolPrint(L"Boot in %d sec.", (timeout_remain + 5) / 10);
                 }
 
                 /* print status at last line of screen */
                 if (status) {
-                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
+                        UINTN len;
+                        UINTN x;
+
+                        /* center line */
+                        len = StrLen(status);
+                        if (len < x_max)
+                                x = (x_max - len) / 2;
+                        else
+                                x = 0;
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
+                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
+                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline + (x_max - x));
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, status);
-                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1 + StrLen(status));
+                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1 + x + len);
                 }
 
                 err = uefi_call_wrapper(ST->ConIn->ReadKeyStroke, 2, ST->ConIn, &key);
@@ -765,13 +795,18 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                 }
                 idx_last = idx_first + visible_max-1;
 
-                if (!refresh && idx_highlight != idx_highlight_prev)
-                        highlight = TRUE;
-
                 switch (key.UnicodeChar) {
                 case CHAR_LINEFEED:
                 case CHAR_CARRIAGE_RETURN:
                         exit = TRUE;
+                        break;
+                case 'j':
+                        if (idx_highlight < config->entry_count-1)
+                                idx_highlight++;
+                        break;
+                case 'k':
+                        if (idx_highlight > 0)
+                                idx_highlight--;
                         break;
                 case 'q':
                         exit = TRUE;
@@ -782,7 +817,7 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                                 /* store the selected entry in a persistent EFI variable */
                                 efivar_set(L"LoaderEntryDefault", config->entries[idx_highlight]->file, TRUE);
                                 config->idx_default_efivar = idx_highlight;
-                                status = StrDuplicate(L"Default boot entry permanently stored.");
+                                status = StrDuplicate(L"Default boot entry selected.");
                         } else {
                                 /* clear the default entry EFI variable */
                                 efivar_set(L"LoaderEntryDefault", NULL, TRUE);
@@ -796,20 +831,17 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                                 config->timeout_sec_efivar--;
                                 efivar_set_int(L"LoaderConfigTimeout", config->timeout_sec_efivar, TRUE);
                                 if (config->timeout_sec_efivar > 0)
-                                        status = PoolPrint(L"Menu timeout of %d sec permanently stored.",
-                                                           config->timeout_sec_efivar);
+                                        status = PoolPrint(L"Menu timeout set to %d sec.", config->timeout_sec_efivar);
                                 else
-                                        status = StrDuplicate(L"Menu permanently disabled. "
-                                                              "Hold down key at bootup to show menu.");
+                                        status = StrDuplicate(L"Menu disabled. Hold down key at bootup to show menu.");
                         } else if (config->timeout_sec_efivar <= 0){
                                 config->timeout_sec_efivar = -1;
                                 efivar_set(L"LoaderConfigTimeout", NULL, TRUE);
                                 if (config->timeout_sec_config > 0)
-                                        status = PoolPrint(L"Menu timeout of %d sec defined by configuration file.",
+                                        status = PoolPrint(L"Menu timeout of %d sec is defined by configuration file.",
                                                            config->timeout_sec_config);
                                 else
-                                        status = StrDuplicate(L"Menu permanently disabled. "
-                                                              "Hold down key at bootup to show menu.");
+                                        status = StrDuplicate(L"Menu disabled. Hold down key at bootup to show menu.");
                         }
                         break;
                 case '+':
@@ -818,17 +850,16 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         config->timeout_sec_efivar++;
                         efivar_set_int(L"LoaderConfigTimeout", config->timeout_sec_efivar, TRUE);
                         if (config->timeout_sec_efivar > 0)
-                                status = PoolPrint(L"Menu timeout of %d sec permanently stored.",
+                                status = PoolPrint(L"Menu timeout set to %d sec.",
                                                    config->timeout_sec_efivar);
                         else
-                                status = StrDuplicate(L"Menu permanently disabled. "
-                                                      "Hold down key at bootup to show menu.");
+                                status = StrDuplicate(L"Menu disabled. Hold down key at bootup to show menu.");
                         break;
                 case 'e':
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
-                        if (line_edit(config->entries[idx_highlight]->options, &config->options_edit, x_max, y_max-1))
+                        if (line_edit(config->entries[idx_highlight]->options, &config->options_edit, x_max-1, y_max-1))
                                 exit = TRUE;
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_max-1);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, clearline+1);
@@ -843,6 +874,9 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         refresh = TRUE;
                         break;
                 }
+
+                if (!refresh && idx_highlight != idx_highlight_prev)
+                        highlight = TRUE;
         }
 
         *chosen_entry = config->entries[idx_highlight];
