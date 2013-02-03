@@ -938,7 +938,7 @@ static INTN str_verscmp(CHAR16 *s1, CHAR16 *s2)
         while (*s1 || *s2) {
                 INTN first;
 
-                while ((*s2 && !is_digit(*s1)) || (*s2 && !is_digit(*s2))) {
+                while ((*s1 && !is_digit(*s1)) || (*s2 && !is_digit(*s2))) {
                         INTN order;
 
                         order = c_order(*s1) - c_order(*s2);
