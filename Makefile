@@ -64,12 +64,8 @@ clean:
 tar:
 	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
 
-test: gummiboot$(MACHINE_TYPE_NAME).efi
-	mkdir -p /boot/EFI/gummiboot/
-	cp -v gummiboot$(MACHINE_TYPE_NAME).efi /boot/EFI/gummiboot/
-	@# unmount to sync EFI partition to disk
-	sync
-	umount /boot
-	echo 3 > /proc/sys/vm/drop_caches
-	@# run QEMU with UEFI firmware
-	qemu-kvm -m 512 -L /usr/lib/qemu-bios -snapshot /dev/sda
+test-disk:
+	./test-create-disk.sh
+
+test: gummiboot$(MACHINE_TYPE_NAME).efi test-disk
+	qemu-kvm -m 256 -L /usr/lib/qemu-bios -snapshot test-disk
