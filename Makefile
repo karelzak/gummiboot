@@ -64,8 +64,8 @@ clean:
 tar:
 	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
 
-test-disk:
+test-disk: gummiboot$(MACHINE_TYPE_NAME).efi test-create-disk.sh
 	./test-create-disk.sh
 
-test: gummiboot$(MACHINE_TYPE_NAME).efi test-disk
+test: test-disk
 	qemu-kvm -m 256 -L /usr/lib/qemu-bios -snapshot test-disk
