@@ -577,7 +577,6 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
         INTN timeout_remain;
         BOOLEAN exit = FALSE;
         BOOLEAN run = TRUE;
-        const CHAR16 *TRIANGLE = L"\x25ba";
 
         console_text_mode();
         uefi_call_wrapper(ST->ConIn->Reset, 2, ST->ConIn, FALSE);
@@ -621,8 +620,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                 if (line_width < entry_len)
                         line_width = entry_len;
         }
-        if (line_width > x_max-4)
-                line_width = x_max-4;
+        if (line_width > x_max-6)
+                line_width = x_max-6;
 
         /* offsets to center the entries on the screen */
         x_start = (x_max - (line_width)) / 2;
@@ -670,8 +669,8 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                                                           EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                                 uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[i]);
                                 if ((INTN)i == config->idx_default_efivar) {
-                                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + i - idx_first);
-                                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
+                                        uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start-3, y_start + i - idx_first);
+                                        uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"=>");
                                 }
                         }
                         refresh = FALSE;
@@ -680,16 +679,16 @@ static BOOLEAN menu_run(Config *config, ConfigEntry **chosen_entry, CHAR16 *load
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight_prev]);
                         if ((INTN)idx_highlight_prev == config->idx_default_efivar) {
-                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + idx_highlight_prev - idx_first);
-                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
+                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start-3, y_start + idx_highlight_prev - idx_first);
+                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"=>");
                         }
 
                         uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, 0, y_start + idx_highlight - idx_first);
                         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_BLACK|EFI_BACKGROUND_LIGHTGRAY);
                         uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, lines[idx_highlight]);
                         if ((INTN)idx_highlight == config->idx_default_efivar) {
-                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start - 2, y_start + idx_highlight - idx_first);
-                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, TRIANGLE);
+                                uefi_call_wrapper(ST->ConOut->SetCursorPosition, 3, ST->ConOut, x_start-3, y_start + idx_highlight - idx_first);
+                                uefi_call_wrapper(ST->ConOut->OutputString, 2, ST->ConOut, L"=>");
                         }
                         highlight = FALSE;
                 }

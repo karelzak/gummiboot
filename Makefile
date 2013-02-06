@@ -61,6 +61,9 @@ gummiboot.o: gummiboot.c Makefile
 clean:
 	rm -f gummiboot.o gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
 
+install:
+	cp gummiboot$(MACHINE_TYPE_NAME).efi /boot/EFI/gummiboot/
+
 tar:
 	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
 
