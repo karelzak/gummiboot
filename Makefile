@@ -4,6 +4,18 @@ ARCH=$(shell $(CC) -dumpmachine | sed "s/\(-\).*$$//")
 LIBDIR=$(shell echo $$(cd /usr/lib/$$(gcc -print-multi-os-directory); pwd))
 LIBEFIDIR=$(or $(wildcard $(LIBDIR)/gnuefi), $(LIBDIR))
 
+ifeq ($(ARCH),i686)
+	ARCH=ia32
+	MACHINE_TYPE_NAME=ia32
+endif
+
+ifeq ($(ARCH),x86_64)
+	MACHINE_TYPE_NAME=x64
+	ARCH_CFLAGS= \
+		-DEFI_FUNCTION_WRAPPER \
+		-mno-red-zone
+endif
+
 CPPFLAGS = \
 	-I. \
 	-I/usr/include/efi \
@@ -21,13 +33,8 @@ CFLAGS = \
 	-ffreestanding \
 	-fno-strict-aliasing \
 	-fno-stack-protector \
-	-Wsign-compare
-
-ifeq ($(ARCH),x86_64)
-CFLAGS += \
-	-DEFI_FUNCTION_WRAPPER \
-	-mno-red-zone
-endif
+	-Wsign-compare \
+	$(ARCH_CFLAGS)
 
 LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 	-shared \
@@ -41,7 +48,7 @@ LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-gummiboot.efi: gummiboot.so
+gummiboot$(MACHINE_TYPE_NAME).efi: gummiboot.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic \
 	  -j .dynsym -j .rel -j .rela -j .reloc -j .eh_frame \
 	  --target=efi-app-$(ARCH) $< $@
@@ -52,15 +59,14 @@ gummiboot.so: gummiboot.o
 gummiboot.o: gummiboot.c Makefile
 
 clean:
-	rm -f gummiboot.o gummiboot.so gummiboot.efi
+	rm -f gummiboot.o gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
 
 tar:
 	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
 
-test: gummiboot.efi
-	@# UUID=677B-ECF2 /boot vfat noauto,umask=0077,x-systemd.automount,x-gvfs-hide 1 2
+test: gummiboot$(MACHINE_TYPE_NAME).efi
 	mkdir -p /boot/EFI/gummiboot/
-	cp -v gummiboot.efi /boot/EFI/gummiboot/
+	cp -v gummiboot$(MACHINE_TYPE_NAME).efi /boot/EFI/gummiboot/
 	@# unmount to sync EFI partition to disk
 	sync
 	umount /boot
