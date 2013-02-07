@@ -42,8 +42,7 @@ LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 	-nostdlib \
 	-znocombreloc \
 	-L $(LIBDIR) \
-	$(LIBEFIDIR)/crt0-efi-$(ARCH).o \
-	$(shell $(CC) -print-libgcc-file-name)
+	$(LIBEFIDIR)/crt0-efi-$(ARCH).o
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
@@ -54,7 +53,8 @@ gummiboot$(MACHINE_TYPE_NAME).efi: gummiboot.so
 	  --target=efi-app-$(ARCH) $< $@
 
 gummiboot.so: gummiboot.o
-	$(LD) $(LDFLAGS) gummiboot.o -o $@ -lefi -lgnuefi
+	$(LD) $(LDFLAGS) gummiboot.o -o $@ -lefi -lgnuefi \
+	$(shell $(CC) -print-libgcc-file-name)
 
 gummiboot.o: gummiboot.c Makefile
 
