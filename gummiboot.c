@@ -34,7 +34,7 @@
 #endif
 
 /* magic string to find in the binary image */
-static const char __attribute__((used)) magic[] = "#### gummiboot " stringify(VERSION) " ####";
+static const char __attribute__((used)) magic[] = "#### LoaderInfo: gummiboot " stringify(VERSION) " ####";
 
 /*
  * Allocated random UUID, intended to be shared across tools that implement
@@ -1759,6 +1759,7 @@ static VOID config_free(Config *config) {
 }
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
+        CHAR16 *s;
         EFI_LOADED_IMAGE *loaded_image;
         EFI_FILE *root_dir;
         CHAR16 *loaded_image_path;
@@ -1770,8 +1771,15 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         InitializeLib(image, sys_table);
         init_usec = time_usec();
-        efivar_set(L"LoaderVersion", L"gummiboot " stringify(VERSION), FALSE);
         efivar_set_time_usec(L"LoaderTimeInitUSec", init_usec);
+        efivar_set(L"LoaderInfo", L"gummiboot " stringify(VERSION), FALSE);
+        s = PoolPrint(L"%s %d.%02d", ST->FirmwareVendor, ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
+        efivar_set(L"LoaderFirmwareInfo", s, FALSE);
+        FreePool(s);
+        s = PoolPrint(L"UEFI %d.%02d", ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
+        efivar_set(L"LoaderFirmwareType", s, FALSE);
+        FreePool(s);
+
         err = uefi_call_wrapper(BS->OpenProtocol, 6, image, &LoadedImageProtocol, &loaded_image,
                                 image, NULL, EFI_OPEN_PROTOCOL_GET_PROTOCOL);
         if (EFI_ERROR(err)) {
