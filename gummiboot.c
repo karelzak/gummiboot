@@ -1827,6 +1827,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
 
         /* the filesystem path to this image, to prevent adding ourselves to the menu */
         loaded_image_path = DevicePathToStr(loaded_image->FilePath);
+        efivar_set(L"LoaderImageIdentifier", loaded_image_path, FALSE);
 
         /* scan "\loader\entries\*.conf" files */
         ZeroMem(&config, sizeof(Config));
