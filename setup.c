@@ -33,7 +33,10 @@
 #include <ctype.h>
 #include <limits.h>
 #include <ftw.h>
+#include <stdbool.h>
 #include <blkid.h>
+
+#include "efivars.h"
 
 /* TODO:
  *
@@ -51,6 +54,7 @@ static enum {
 } arg_action = ACTION_STATUS;
 
 static const char *arg_path = NULL;
+static bool arg_touch_variables = true;
 
 static int help(void) {
 
@@ -58,9 +62,10 @@ static int help(void) {
                "Install, update or remove the Gummiboot EFI boot loader.\n\n"
                "  -h --help              Show this help\n"
                "     --path=PATH         Path to the EFI System Partition (ESP)\n"
-               "     --install           Install Gummiboot to the ESP\n"
-               "     --update            Update Gummiboot in the ESP\n"
-               "     --remove            Remove Gummiboot from the ESP\n",
+               "     --no-variables      Don't touch EFI variables\n"
+               "     --install           Install Gummiboot to the ESP and EFI variables\n"
+               "     --update            Update Gummiboot in the ESP and EFI variables\n"
+               "     --remove            Remove Gummiboot from the ESP and EFI variables\n",
                program_invocation_short_name);
 
         return 0;
@@ -73,15 +78,17 @@ static int parse_argv(int argc, char *argv[]) {
                 ARG_UPDATE,
                 ARG_REMOVE,
                 ARG_PATH,
+                ARG_NO_VARIABLES
         };
 
         static const struct option options[] = {
-                { "help",    no_argument,       NULL, 'h'         },
-                { "install", no_argument,       NULL, ARG_INSTALL },
-                { "update",  no_argument,       NULL, ARG_UPDATE  },
-                { "remove",  no_argument,       NULL, ARG_REMOVE  },
-                { "path",    required_argument, NULL, ARG_PATH    },
-                { NULL,      0,                 NULL, 0           }
+                { "help",         no_argument,       NULL, 'h'              },
+                { "install",      no_argument,       NULL, ARG_INSTALL      },
+                { "update",       no_argument,       NULL, ARG_UPDATE       },
+                { "remove",       no_argument,       NULL, ARG_REMOVE       },
+                { "path",         required_argument, NULL, ARG_PATH         },
+                { "no-variables", no_argument,       NULL, ARG_NO_VARIABLES },
+                { NULL,           0,                 NULL, 0                }
         };
 
         int c;
@@ -111,6 +118,10 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case ARG_PATH:
                         arg_path = optarg;
+                        break;
+
+                case ARG_NO_VARIABLES:
+                        arg_touch_variables = false;
                         break;
 
                 case '?':
@@ -384,9 +395,9 @@ static int enumerate_binaries(const char *path, const char *prefix) {
                         goto finish;
 
                 if (r == 0)
-                        printf("%s (Unknown product and version)\n", q);
+                        printf("\t%s (Unknown product and version)\n", q);
                 else
-                        printf("%s (%s)\n", q, v);
+                        printf("\t%s (%s)\n", q, v);
 
                 c++;
 
@@ -408,19 +419,117 @@ finish:
 static int status_binaries(void) {
         int r;
 
+        printf("Boot Loader Binaries found in ESP:\n");
+
         r = enumerate_binaries("EFI/gummiboot", NULL);
         if (r == 0)
-                fprintf(stderr, "Gummiboot not installed to ESP.\n");
+                fprintf(stderr, "\tGummiboot not installed to ESP.\n");
         else if (r < 0)
                 return r;
 
         r = enumerate_binaries("EFI/BOOT", "BOOT");
         if (r == 0)
-                fprintf(stderr, "No fallback for removable devices installed to ESP.\n");
+                fprintf(stderr, "\tNo fallback for removable devices installed to ESP.\n");
         else if (r < 0)
                 return r;
 
         return 0;
+}
+
+static int print_efi_option(uint16_t id, bool in_order) {
+        char *title, *path;
+        uint8_t partition[16];
+        int r;
+
+        r = efi_get_boot_option(id, &title, partition, &path);
+        if (r == -ENOENT)
+                return 0;
+        if (r < 0) {
+                fprintf(stderr, "Failed to read EFI boot entry %i.\n", id);
+                return r;
+        }
+
+        if (path)
+                printf("\t%s (%s on /dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x)", title, path,
+                       partition[0], partition[1], partition[2], partition[3], partition[4], partition[5], partition[6], partition[7],
+                       partition[8], partition[9], partition[10], partition[11], partition[12], partition[13], partition[14], partition[15]);
+        else
+                printf("\t%s", title);
+
+        if (in_order)
+                printf(" [ENABLED]");
+
+        printf("\n");
+
+        return 0;
+}
+
+static int status_variables(void) {
+        int n_options, n_order;
+        uint16_t *options = NULL, *order = NULL;
+        int r, i;
+
+        if (!arg_touch_variables)
+                return 0;
+
+        if (!is_efi_boot()) {
+                fprintf(stderr, "Not booted with EFI, not showing EFI variables.\n");
+                return 0;
+        }
+
+        printf("\nBoot Loader Entries found in EFI Variables:\n");
+
+        n_options = efi_get_boot_options(&options);
+        if (n_options < 0) {
+                fprintf(stderr, "Failed to read EFI boot options.\n");
+                r = n_options;
+                goto finish;
+        }
+
+        n_order = efi_get_boot_order(&order);
+        if (n_order == -ENOENT) {
+                options = NULL;
+                n_options = 0;
+        } else if (n_order < 0) {
+                fprintf(stderr, "Failed to read EFI boot order.\n");
+                r = n_order;
+                goto finish;
+        }
+
+        for (i = 0; i < n_order; i++) {
+                r = print_efi_option(order[i], true);
+                if (r < 0)
+                        goto finish;
+        }
+
+        for (i = 0; i < n_options; i++) {
+                int j;
+                bool found = false;
+
+                for (j = 0; j < n_order; j++)
+                        if (options[i] == order[j]) {
+                                found = true;
+                                break;
+                        }
+
+                if (found)
+                        continue;
+
+                r = print_efi_option(options[i], false);
+                if (r < 0)
+                        goto finish;
+        }
+
+        if (n_order == 0 && n_options == 0)
+                fprintf(stderr, "\tNo entries registered in boot loader.\n");
+
+        r = 0;
+
+finish:
+        free(options);
+        free(order);
+
+        return r;
 }
 
 static int compare_product(const char *a, const char *b) {
@@ -530,7 +639,7 @@ static int copy_file(const char *from, const char *to) {
                         goto finish;
         }
 
-        if (asprintf(&p, "%s.tmp", to) < 0) {
+        if (asprintf(&p, "%s~", to) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 r = -ENOMEM;
                 goto finish;
@@ -764,6 +873,19 @@ static int install_binaries(void) {
         return r;
 }
 
+static int install_variables(void) {
+
+        if (!arg_touch_variables)
+                return 0;
+
+        if (!is_efi_boot()) {
+                fprintf(stderr, "Not booted with EFI, skipping EFI variable checks.\n");
+                return 0;
+        }
+
+        return 0;
+}
+
 static int delete_nftw(const char *path, const struct stat *sb, int typeflag, struct FTW *ftw) {
         int r;
 
@@ -932,8 +1054,19 @@ static int remove_binaries(void) {
         return r;
 }
 
+static int remove_variables(void) {
+
+        if (!arg_touch_variables)
+                return 0;
+
+        if (!is_efi_boot())
+                return 0;
+
+        return 0;
+}
+
 int main(int argc, char*argv[]) {
-        int r;
+        int r, q;
 
         r = parse_argv(argc, argv);
         if (r <= 0)
@@ -955,6 +1088,10 @@ int main(int argc, char*argv[]) {
 
         case ACTION_STATUS:
                 r = status_binaries();
+                if (r < 0)
+                        goto finish;
+
+                r = status_variables();
                 break;
 
         case ACTION_INSTALL:
@@ -962,10 +1099,18 @@ int main(int argc, char*argv[]) {
                 umask(0002);
 
                 r = install_binaries();
+                if (r < 0)
+                        goto finish;
+
+                r = install_variables();
                 break;
 
         case ACTION_REMOVE:
                 r = remove_binaries();
+
+                q = remove_variables();
+                if (q < 0 && r == 0)
+                        r = q;
                 break;
         }
 

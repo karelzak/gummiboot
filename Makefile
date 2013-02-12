@@ -60,8 +60,8 @@ gummiboot.so: gummiboot.o
 
 gummiboot.o: gummiboot.c Makefile
 
-gummiboot: setup.c
-	$(CC) -O0 -g -Wall -Wextra -D_GNU_SOURCE `pkg-config --cflags --libs blkid` $^ -o $@
+gummiboot: setup.c efivars.c efivars.c
+	$(CC) -O0 -g -Wall -Wextra -D_GNU_SOURCE `pkg-config --cflags --libs blkid` setup.c efivars.c -o $@
 
 clean:
 	rm -f gummiboot.o gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
