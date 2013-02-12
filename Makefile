@@ -47,7 +47,7 @@ LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-all: gummiboot$(MACHINE_TYPE_NAME).efi gummiboot-setup
+all: gummiboot$(MACHINE_TYPE_NAME).efi gummiboot
 
 gummiboot$(MACHINE_TYPE_NAME).efi: gummiboot.so
 	objcopy -j .text -j .sdata -j .data -j .dynamic \
@@ -60,7 +60,7 @@ gummiboot.so: gummiboot.o
 
 gummiboot.o: gummiboot.c Makefile
 
-gummiboot-setup: setup.c
+gummiboot: setup.c
 	$(CC) -O0 -g -Wall -Wextra -D_GNU_SOURCE `pkg-config --cflags --libs blkid` $^ -o $@
 
 clean:
@@ -68,7 +68,7 @@ clean:
 
 install:
 	mkdir -p $(DESTDIR)/usr/bin/
-	cp gummiboot-setup $(DESTDIR)/usr/bin
+	cp gummiboot $(DESTDIR)/usr/bin
 	mkdir -p $(DESTDIR)/usr/lib/gummiboot/
 	cp gummiboot$(MACHINE_TYPE_NAME).efi $(DESTDIR)/usr/lib/gummiboot/
 
