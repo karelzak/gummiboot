@@ -41,8 +41,6 @@
  * - Make backups of foreign files we overwrite
  * - Generate loader.conf from /etc/os-release?
  * - fix seek nonsense when looking for file version
- * - Add a nicer warning if the ESP wasn't found
- * - Suppress error messages if we are updating and the directories don't exist yet
  */
 
 static enum {
@@ -149,7 +147,7 @@ static int verify_esp(void) {
         }
 
         if (sfs.f_type != 0x4d44) {
-                fprintf(stderr, "%s is not a FAT/ESP file system.\n", p);
+                fprintf(stderr, "File system %s is not a FAT EFI System Partition (ESP) file system.\n", p);
                 return -ENODEV;
         }
 
@@ -177,7 +175,7 @@ static int verify_esp(void) {
         }
 
         if (st.st_dev == st2.st_dev) {
-                fprintf(stderr, "%s is not the root of the ESP file system.\n", p);
+                fprintf(stderr, "Directory %s is not the root of the EFI System Partition (ESP) file system.\n", p);
                 return -ENODEV;
         }
 
@@ -208,11 +206,11 @@ static int verify_esp(void) {
         errno = 0;
         r = blkid_do_safeprobe(b);
         if (r == -2) {
-                fprintf(stderr, "%s file system is ambigious.\n", p);
+                fprintf(stderr, "File system %s is ambigious.\n", p);
                 r = -ENODEV;
                 goto fail;
         } else if (r == 1) {
-                fprintf(stderr, "%s does not contain a file system label.\n", p);
+                fprintf(stderr, "File system %s does not contain a label.\n", p);
                 r = -ENODEV;
                 goto fail;
         } else if (r != 0) {
@@ -230,7 +228,7 @@ static int verify_esp(void) {
         }
 
         if (strcmp(v, "vfat") != 0) {
-                fprintf(stderr, "%s is not a FAT/ESP file system after all.\n", p);
+                fprintf(stderr, "File system %s is not a FAT EFI System Partition (ESP) file system after all.\n", p);
                 r = -ENODEV;
                 goto fail;
         }
@@ -244,7 +242,7 @@ static int verify_esp(void) {
         }
 
         if (strcmp(v, "gpt") != 0) {
-                fprintf(stderr, "%s is not on a GPT partition table.\n", p);
+                fprintf(stderr, "File system %s is not on a GPT partition table.\n", p);
                 r = -ENODEV;
                 goto fail;
         }
@@ -258,7 +256,7 @@ static int verify_esp(void) {
         }
 
         if (strcmp(v, "c12a7328-f81f-11d2-ba4b-00a0c93ec93b") != 0) {
-                fprintf(stderr, "%s is not an EFI System Partition (ESP).\n", p);
+                fprintf(stderr, "File system %s is not an EFI System Partition (ESP).\n", p);
                 r = -ENODEV;
                 goto fail;
         }
@@ -948,6 +946,8 @@ int main(int argc, char*argv[]) {
         }
 
         r = verify_esp();
+        if (r == -ENODEV)
+                fprintf(stderr, "You might want to use --path= to indicate the path to your ESP, in case it is not mounted to /boot.\n");
         if (r < 0)
                 goto finish;
 
