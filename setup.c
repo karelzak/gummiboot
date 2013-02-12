@@ -486,13 +486,13 @@ static int version_check(FILE *f, const char *from, const char *to) {
                 goto finish;
         if (r == 0 || compare_product(a, b) != 0) {
                 r = -EEXIST;
-                fprintf(stderr, "Not overwriting %s, since it's owned by another boot loader.\n", to);
+                fprintf(stderr, "Skipping %s, since it's owned by another boot loader.\n", to);
                 goto finish;
         }
 
         if (compare_version(a, b) < 0) {
                 r = -EEXIST;
-                fprintf(stderr, "Not overwriting %s, since it's a newer boot loader version already.\n", to);
+                fprintf(stderr, "Skipping %s, since it's a newer boot loader version already.\n", to);
                 goto finish;
         }
 
@@ -540,6 +540,12 @@ static int copy_file(const char *from, const char *to) {
 
         g = fopen(p, "wxe");
         if (!g) {
+                /* Directory doesn't exist yet? Then let's skip this... */
+                if (arg_action == ACTION_UPDATE && errno == ENOENT) {
+                        r = 0;
+                        goto finish;
+                }
+
                 fprintf(stderr, "Failed to open %s for writing: %m\n", to);
                 r = -errno;
                 goto finish;
@@ -944,8 +950,6 @@ int main(int argc, char*argv[]) {
         r = verify_esp();
         if (r < 0)
                 goto finish;
-
-        fprintf(stderr, "Using EFI System Partition on %s.\n", arg_path);
 
         switch (arg_action) {
 
