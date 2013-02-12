@@ -564,6 +564,13 @@ static int copy_file(const char *from, const char *to) {
                 }
         } while (!feof(f));
 
+        fflush(g);
+        if (ferror(g)) {
+                fprintf(stderr, "Failed to write %s: %m\n", to);
+                r = -errno;
+                goto finish;
+        }
+
         r = fstat(fileno(f), &st);
         if (r < 0) {
                 fprintf(stderr, "Failed to get file timestamps of %s: %m", from);
