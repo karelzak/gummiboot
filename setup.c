@@ -946,7 +946,7 @@ int main(int argc, char*argv[]) {
         }
 
         r = verify_esp();
-        if (r == -ENODEV)
+        if (r == -ENODEV && !arg_path)
                 fprintf(stderr, "You might want to use --path= to indicate the path to your ESP, in case it is not mounted to /boot.\n");
         if (r < 0)
                 goto finish;
