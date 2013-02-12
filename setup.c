@@ -32,14 +32,17 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <limits.h>
+#include <ftw.h>
 #include <blkid.h>
 
 /* TODO:
  *
- * - Implement --remove
  * - Maybe write EFI variables as right-away?
  * - Make backups of foreign files we overwrite
  * - Generate loader.conf from /etc/os-release?
+ * - fix seek nonsense when looking for file version
+ * - Add a nicer warning if the ESP wasn't found
+ * - Suppress error messages if we are updating and the directories don't exist yet
  */
 
 static enum {
@@ -57,7 +60,7 @@ static int help(void) {
                "Install, update or remove the Gummiboot EFI boot loader.\n\n"
                "  -h --help              Show this help\n"
                "     --path=PATH         Path to the EFI System Partition (ESP)\n"
-               "     --install           Install Gummiboot to the ESPs\n"
+               "     --install           Install Gummiboot to the ESP\n"
                "     --update            Update Gummiboot in the ESP\n"
                "     --remove            Remove Gummiboot from the ESP\n",
                program_invocation_short_name);
@@ -757,13 +760,172 @@ static int install_binaries(void) {
         return r;
 }
 
+static int delete_nftw(const char *path, const struct stat *sb, int typeflag, struct FTW *ftw) {
+        int r;
+
+        if (typeflag == FTW_D || typeflag == FTW_DNR || typeflag == FTW_DP)
+                r = rmdir(path);
+        else
+                r = unlink(path);
+
+        if (r < 0)
+                fprintf(stderr, "Failed to remove %s: %m\n", path);
+        else
+                fprintf(stderr, "Removed %s.\n", path);
+
+        return 0;
+}
+
+static int rm_rf(const char *p) {
+        nftw(p, delete_nftw, 20, FTW_DEPTH|FTW_MOUNT|FTW_PHYS);
+        return 0;
+}
+
+static int remove_boot_efi(void) {
+        struct dirent *de;
+        char *p = NULL, *q = NULL;
+        DIR *d = NULL;
+        int r = 0, c = 0;
+
+        if (asprintf(&p, "%s/EFI/BOOT", arg_path) < 0) {
+                fprintf(stderr, "Out of memory.\n");
+                return -ENOMEM;
+        }
+
+        d = opendir(p);
+        if (!d) {
+                if (errno == ENOENT) {
+                        r = 0;
+                        goto finish;
+                }
+
+                fprintf(stderr, "Failed to read %s: %m\n", p);
+                r = -errno;
+                goto finish;
+        }
+
+        while ((de = readdir(d))) {
+                char *v;
+                size_t n;
+                FILE *f;
+
+                if (de->d_name[0] == '.')
+                        continue;
+
+                n = strlen(de->d_name);
+                if (n < 4 || strcasecmp(de->d_name + n - 4, ".EFI") != 0)
+                        continue;
+
+                if (strncasecmp(de->d_name, "BOOT", 4) != 0)
+                        continue;
+
+                free(q);
+                q = NULL;
+                if (asprintf(&q, "%s/%s", p, de->d_name) < 0) {
+                        fprintf(stderr, "Out of memory.\n");
+                        r = -ENOMEM;
+                        goto finish;
+                }
+
+                f = fopen(q, "re");
+                if (!f) {
+                        fprintf(stderr, "Failed to open %s for reading: %m\n", q);
+                        r = -errno;
+                        goto finish;
+                }
+
+                r = get_file_version(f, &v);
+                fclose(f);
+
+                if (r < 0)
+                        goto finish;
+
+                if (r > 0 && strncmp(v, "gummiboot ", 10) == 0) {
+
+                        r = unlink(q);
+                        if (r < 0) {
+                                fprintf(stderr, "Failed to remove %s: %m\n", q);
+                                r = -errno;
+                                free(v);
+                                goto finish;
+                        } else
+                                fprintf(stderr, "Removed %s.\n", q);
+                }
+
+                c++;
+                free(v);
+        }
+
+        r = c;
+
+finish:
+        if (d)
+                closedir(d);
+        free(p);
+        free(q);
+
+        return r;
+}
+
+static int rmdir_one(const char *prefix, const char *suffix) {
+        char *p;
+
+        if (asprintf(&p, "%s/%s", prefix, suffix) < 0) {
+                fprintf(stderr, "Out of memory.\n");
+                return -ENOMEM;
+        }
+
+        if (rmdir(p) < 0) {
+                if (errno != ENOENT && errno != ENOTEMPTY) {
+                        fprintf(stderr, "Failed to remove %s: %m\n", p);
+                        free(p);
+                        return -errno;
+                }
+        } else
+                fprintf(stderr, "Removed %s.\n", p);
+
+        free(p);
+        return 0;
+}
+
+
 static int remove_binaries(void) {
+        char *p;
+        int r, q;
 
-        /* Remove /EFI/gummiboot/ entirely */
+        if (asprintf(&p, "%s/EFI/gummiboot", arg_path) < 0) {
+                fprintf(stderr, "Out of memory.\n");
+                return -ENOMEM;
+        }
 
-        /* Remove /EFI/BOOT/BOOT*.EFI, but only if there's our version string inside */
+        r = rm_rf(p);
+        free(p);
 
-        return -ENOTSUP;
+        q = remove_boot_efi();
+        if (q < 0 && r == 0)
+                r = q;
+
+        q = rmdir_one(arg_path, "loader/entries");
+        if (q < 0 && r == 0)
+                r = q;
+
+        q = rmdir_one(arg_path, "loader");
+        if (q < 0 && r == 0)
+                r = q;
+
+        q = rmdir_one(arg_path, "EFI/BOOT");
+        if (q < 0 && r == 0)
+                r = q;
+
+        q = rmdir_one(arg_path, "EFI/gummiboot");
+        if (q < 0 && r == 0)
+                r = q;
+
+        q = rmdir_one(arg_path, "EFI");
+        if (q < 0 && r == 0)
+                r = q;
+
+        return r;
 }
 
 int main(int argc, char*argv[]) {
