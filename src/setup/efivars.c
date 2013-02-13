@@ -30,7 +30,6 @@
 #include <stddef.h>
 #include <dirent.h>
 #include <ctype.h>
-        qsort(list, count, sizeof(uint16_t), cmp_uint16);
 
 #include "efivars.h"
 
@@ -397,6 +396,7 @@ int efi_get_boot_options(uint16_t **options) {
         }
 
         closedir(dir);
+        qsort(list, count, sizeof(uint16_t), cmp_uint16);
         *options = list;
 
         return count;
