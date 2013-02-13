@@ -298,11 +298,18 @@ int efi_get_boot_option(
 
         if (title)
                 *title = s;
+	else
+		free(s);
+
         if (part_uuid)
                 memcpy(part_uuid, p_uuid, 16);
+
         if (path)
                 *path = p;
+	else
+		free(p);
 
+	free(buf);
         return 0;
 err:
         free(s);

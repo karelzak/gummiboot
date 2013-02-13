@@ -372,16 +372,17 @@ static int status_binaries(void) {
 }
 
 static int print_efi_option(uint16_t id, bool in_order) {
-        char *title, *path;
+        char *title = NULL;
+	char *path = NULL;
         uint8_t partition[16];
-        int r;
+        int r = 0;
 
         r = efi_get_boot_option(id, &title, partition, &path);
         if (r == -ENOENT)
-                return 0;
+                goto finish;
         if (r < 0) {
                 fprintf(stderr, "Failed to read EFI boot entry %i.\n", id);
-                return r;
+                goto finish;
         }
 
         if (path)
@@ -395,8 +396,10 @@ static int print_efi_option(uint16_t id, bool in_order) {
                 printf(" [ENABLED]");
 
         printf("\n");
-
-        return 0;
+finish:
+	free(title);
+	free(path);
+        return r;
 }
 
 static int status_variables(void) {
