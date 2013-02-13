@@ -348,6 +348,21 @@ static int cmp_uint16(const void *a, const void *b) {
         return *i1 - *i2;
 }
 
+static int boot_id_hex(const char s[4]) {
+        int i;
+        int id = 0;
+
+        for (i = 0; i < 4; i++)
+                if (s[i] >= '0' && s[i] <= '9')
+                        id |= (s[i] - '0') << (3 - i) * 4;
+                else if (s[i] >= 'A' && s[i] <= 'F')
+                        id |= (s[i] - 'A' + 10) << (3 - i) * 4;
+                else
+                        return -1;
+
+        return id;
+}
+
 int efi_get_boot_options(uint16_t **options) {
         DIR *dir;
         struct dirent *de;
@@ -361,12 +376,20 @@ int efi_get_boot_options(uint16_t **options) {
                 return -errno;
 
         while ((de = readdir(dir))) {
-                unsigned int id;
+                int id;
                 uint16_t *t;
 
-                if (de->d_name[0] == '.')
+                if (strncmp(de->d_name, "Boot", 4) != 0)
                         continue;
-                if (sscanf(de->d_name, "Boot%04X-8be4df61-93ca-11d2-aa0d-00e098032b8c", &id) != 1)
+
+                if (strlen(de->d_name) != 45)
+                        continue;
+
+                if (strcmp(de->d_name + 8, "-8be4df61-93ca-11d2-aa0d-00e098032b8c") != 0)
+                        continue;
+
+                id = boot_id_hex(de->d_name + 4);
+                if (id < 0)
                         continue;
 
                 t = realloc(list, (count + 1) * sizeof(uint16_t));
