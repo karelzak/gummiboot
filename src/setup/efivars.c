@@ -30,6 +30,7 @@
 #include <stddef.h>
 #include <dirent.h>
 #include <ctype.h>
+        qsort(list, count, sizeof(uint16_t), cmp_uint16);
 
 #include "efivars.h"
 
@@ -341,6 +342,13 @@ int efi_get_boot_order(uint16_t **order) {
         return (int) (l / sizeof(uint16_t));
 }
 
+static int cmp_uint16(const void *a, const void *b) {
+        const uint16_t *i1 = a;
+        const uint16_t *i2 = a;
+
+        return *i1 - *i2;
+}
+
 int efi_get_boot_options(uint16_t **options) {
         DIR *dir;
         struct dirent *de;
@@ -388,7 +396,9 @@ int efi_get_boot_options(uint16_t **options) {
 
         }
 
+        closedir(dir);
         *options = list;
+
         return count;
 }
 
