@@ -85,7 +85,7 @@ gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c
 
 # ------------------------------------------------------------------------------
 clean:
-	rm -f src/setup/gummiboot.o src/setup/gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
+	rm -f src/efi/gummiboot.o src/efi/gummiboot.so gummiboot gummiboot$(MACHINE_TYPE_NAME).efi
 
 install:
 	mkdir -p $(DESTDIR)/usr/bin/
