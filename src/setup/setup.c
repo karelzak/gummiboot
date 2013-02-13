@@ -38,6 +38,9 @@
 
 #include "efivars.h"
 
+#define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
+#define streq(a,b) (strcmp((a),(b)) == 0)
+
 /* TODO:
  *
  * - Maybe write EFI variables as right-away?
@@ -46,7 +49,7 @@
  * - fix seek nonsense when looking for file version
  */
 
-static enum {
+static enum action {
         ACTION_STATUS,
         ACTION_INSTALL,
         ACTION_UPDATE,
@@ -57,88 +60,20 @@ static const char *arg_path = NULL;
 static bool arg_touch_variables = true;
 
 static int help(void) {
-
-        printf("%s [OPTIONS...]\n\n"
+        printf("%s [COMMAND] [OPTIONS...]\n"
+               "\n"
                "Install, update or remove the Gummiboot EFI boot loader.\n\n"
-               "  -h --help              Show this help\n"
-               "     --path=PATH         Path to the EFI System Partition (ESP)\n"
-               "     --no-variables      Don't touch EFI variables\n"
-               "     --install           Install Gummiboot to the ESP and EFI variables\n"
-               "     --update            Update Gummiboot in the ESP and EFI variables\n"
-               "     --remove            Remove Gummiboot from the ESP and EFI variables\n",
+               "  -h --help          Show this help\n"
+               "     --path=PATH     Path to the EFI System Partition (ESP)\n"
+               "     --no-variables  Don't touch EFI variables\n"
+               "\n"
+               "Comands:\n"
+               "     install         Install Gummiboot to the ESP and EFI variables\n"
+               "     update          Update Gummiboot in the ESP and EFI variables\n"
+               "     remove          Remove Gummiboot from the ESP and EFI variables\n",
                program_invocation_short_name);
 
         return 0;
-}
-
-static int parse_argv(int argc, char *argv[]) {
-
-        enum {
-                ARG_INSTALL = 0x100,
-                ARG_UPDATE,
-                ARG_REMOVE,
-                ARG_PATH,
-                ARG_NO_VARIABLES
-        };
-
-        static const struct option options[] = {
-                { "help",         no_argument,       NULL, 'h'              },
-                { "install",      no_argument,       NULL, ARG_INSTALL      },
-                { "update",       no_argument,       NULL, ARG_UPDATE       },
-                { "remove",       no_argument,       NULL, ARG_REMOVE       },
-                { "path",         required_argument, NULL, ARG_PATH         },
-                { "no-variables", no_argument,       NULL, ARG_NO_VARIABLES },
-                { NULL,           0,                 NULL, 0                }
-        };
-
-        int c;
-
-        assert(argc >= 0);
-        assert(argv);
-
-        while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
-
-                switch (c) {
-
-                case 'h':
-                        help();
-                        return 0;
-
-                case ARG_INSTALL:
-                        arg_action = ACTION_INSTALL;
-                        break;
-
-                case ARG_UPDATE:
-                        arg_action = ACTION_UPDATE;
-                        break;
-
-                case ARG_REMOVE:
-                        arg_action = ACTION_REMOVE;
-                        break;
-
-                case ARG_PATH:
-                        arg_path = optarg;
-                        break;
-
-                case ARG_NO_VARIABLES:
-                        arg_touch_variables = false;
-                        break;
-
-                case '?':
-                        return -EINVAL;
-
-                default:
-                        fprintf(stderr, "Unknown option code '%c'.\n", c);
-                        return -EINVAL;
-                }
-        }
-
-        if (argc > optind) {
-                fprintf(stderr, "Excess arguments.\n");
-                return -EINVAL;
-        }
-
-        return 1;
 }
 
 static int verify_esp(void) {
@@ -874,7 +809,6 @@ static int install_binaries(void) {
 }
 
 static int install_variables(void) {
-
         if (!arg_touch_variables)
                 return 0;
 
@@ -1055,7 +989,6 @@ static int remove_binaries(void) {
 }
 
 static int remove_variables(void) {
-
         if (!arg_touch_variables)
                 return 0;
 
@@ -1065,17 +998,87 @@ static int remove_variables(void) {
         return 0;
 }
 
-int main(int argc, char*argv[]) {
-        int r, q;
+static int parse_argv(int argc, char *argv[]) {
+        enum {
+                ARG_PATH = 0x100,
+                ARG_NO_VARIABLES
+        };
 
-        r = parse_argv(argc, argv);
-        if (r <= 0)
-                goto finish;
+        static const struct option options[] = {
+                { "help",         no_argument,       NULL, 'h'              },
+                { "path",         required_argument, NULL, ARG_PATH         },
+                { "no-variables", no_argument,       NULL, ARG_NO_VARIABLES },
+                { NULL,           0,                 NULL, 0                }
+        };
+
+        int c;
+
+        assert(argc >= 0);
+        assert(argv);
+
+        while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
+
+                switch (c) {
+
+                case 'h':
+                        help();
+                        return 0;
+
+                case ARG_PATH:
+                        arg_path = optarg;
+                        break;
+
+                case ARG_NO_VARIABLES:
+                        arg_touch_variables = false;
+                        break;
+
+                case '?':
+                        return -EINVAL;
+
+                default:
+                        fprintf(stderr, "Unknown option code '%c'.\n", c);
+                        return -EINVAL;
+                }
+        }
+
+        return 1;
+}
+
+int main(int argc, char*argv[]) {
+        static const struct {
+                const char* verb;
+                enum action action;
+        } verbs[] = {
+                { "status",  ACTION_STATUS },
+                { "install", ACTION_INSTALL },
+                { "update",  ACTION_UPDATE },
+                { "remove",  ACTION_REMOVE },
+        };
+        unsigned int i;
+        int r, q;
 
         if (geteuid() != 0) {
                 fprintf(stderr, "Need to be root.\n");
                 r = -EPERM;
                 goto finish;
+        }
+
+        r = parse_argv(argc, argv);
+        if (r <= 0)
+                goto finish;
+
+        if (argv[optind]) {
+                for (i = 0; i < ELEMENTSOF(verbs); i++) {
+                        if (!streq(argv[optind], verbs[i].verb))
+                                continue;
+                        arg_action = verbs[i].action;
+                        break;
+                }
+                if (i >= ELEMENTSOF(verbs)) {
+                        fprintf(stderr, "Unknown operation %s\n", argv[optind]);
+                        r = -EINVAL;
+                        goto finish;
+                }
         }
 
         r = verify_esp();
@@ -1085,7 +1088,6 @@ int main(int argc, char*argv[]) {
                 goto finish;
 
         switch (arg_action) {
-
         case ACTION_STATUS:
                 r = status_binaries();
                 if (r < 0)
