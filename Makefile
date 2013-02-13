@@ -1,5 +1,14 @@
 VERSION=19
 
+ifeq ($(strip $(V)),)
+	E = @echo
+	Q = @
+else
+	E = @\#
+	Q =
+endif
+export E Q
+
 ARCH=$(shell $(CC) -dumpmachine | sed "s/\(-\).*$$//")
 LIBDIR=$(shell echo $$(cd /usr/lib/$$(gcc -print-multi-os-directory); pwd))
 LIBEFIDIR=$(or $(wildcard $(LIBDIR)/gnuefi), $(LIBDIR))
@@ -16,6 +25,9 @@ ifeq ($(ARCH),x86_64)
 		-mno-red-zone
 endif
 
+all: gummiboot$(MACHINE_TYPE_NAME).efi gummiboot
+
+# ------------------------------------------------------------------------------
 CPPFLAGS = \
 	-I. \
 	-I/usr/include/efi \
@@ -45,26 +57,35 @@ LDFLAGS = -T $(LIBEFIDIR)/elf_$(ARCH)_efi.lds \
 	$(LIBEFIDIR)/crt0-efi-$(ARCH).o
 
 %.o: %.c
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	$(E) "  CC       " $@
+	$(Q) $(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-all: gummiboot$(MACHINE_TYPE_NAME).efi gummiboot
+src/efi/gummiboot.o: src/efi/gummiboot.c Makefile
 
-gummiboot$(MACHINE_TYPE_NAME).efi: gummiboot.so
-	objcopy -j .text -j .sdata -j .data -j .dynamic \
+src/efi/gummiboot.so: src/efi/gummiboot.o
+	$(E) "  LD       " $@
+	$(Q) $(LD) $(LDFLAGS) src/efi/gummiboot.o -o $@ -lefi -lgnuefi \
+	  $(shell $(CC) -print-libgcc-file-name)
+
+gummiboot$(MACHINE_TYPE_NAME).efi: src/efi/gummiboot.so
+	$(E) "  OBJCOPY  " $@
+	$(Q) objcopy -j .text -j .sdata -j .data -j .dynamic \
 	  -j .dynsym -j .rel -j .rela -j .reloc -j .eh_frame \
 	  --target=efi-app-$(ARCH) $< $@
 
-gummiboot.so: gummiboot.o
-	$(LD) $(LDFLAGS) gummiboot.o -o $@ -lefi -lgnuefi \
-	$(shell $(CC) -print-libgcc-file-name)
+# ------------------------------------------------------------------------------
+gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c
+	$(E) "  CCLD     " $@
+	$(Q) $(CC) -O0 -g -Wall -Wextra \
+	  -Wno-unused-parameter -D_GNU_SOURCE \
+	  `pkg-config --cflags --libs blkid` \
+	  src/setup/setup.c \
+	  src/setup/efivars.c \
+	  -o $@
 
-gummiboot.o: gummiboot.c Makefile
-
-gummiboot: setup.c efivars.c efivars.c
-	$(CC) -O0 -g -Wall -Wextra -D_GNU_SOURCE `pkg-config --cflags --libs blkid` setup.c efivars.c -o $@
-
+# ------------------------------------------------------------------------------
 clean:
-	rm -f gummiboot.o gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
+	rm -f src/setup/gummiboot.o src/setup/gummiboot.so gummiboot$(MACHINE_TYPE_NAME).efi
 
 install:
 	mkdir -p $(DESTDIR)/usr/bin/

@@ -1,4 +1,5 @@
-/*.o
+*.o
+*.so
 /gummiboot
 /gummiboot.so
 /gummibootia32.efi
