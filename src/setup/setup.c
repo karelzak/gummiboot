@@ -1057,12 +1057,6 @@ int main(int argc, char*argv[]) {
         unsigned int i;
         int r, q;
 
-        if (geteuid() != 0) {
-                fprintf(stderr, "Need to be root.\n");
-                r = -EPERM;
-                goto finish;
-        }
-
         r = parse_argv(argc, argv);
         if (r <= 0)
                 goto finish;
@@ -1079,6 +1073,12 @@ int main(int argc, char*argv[]) {
                         r = -EINVAL;
                         goto finish;
                 }
+        }
+
+        if (geteuid() != 0) {
+                fprintf(stderr, "Need to be root.\n");
+                r = -EPERM;
+                goto finish;
         }
 
         r = verify_esp();
