@@ -373,7 +373,7 @@ static int status_binaries(void) {
 
 static int print_efi_option(uint16_t id, bool in_order) {
         char *title = NULL;
-	char *path = NULL;
+        char *path = NULL;
         uint8_t partition[16];
         int r = 0;
 
@@ -397,8 +397,8 @@ static int print_efi_option(uint16_t id, bool in_order) {
 
         printf("\n");
 finish:
-	free(title);
-	free(path);
+        free(title);
+        free(path);
         return r;
 }
 

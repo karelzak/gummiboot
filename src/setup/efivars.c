@@ -298,18 +298,18 @@ int efi_get_boot_option(
 
         if (title)
                 *title = s;
-	else
-		free(s);
+        else
+                free(s);
 
         if (part_uuid)
                 memcpy(part_uuid, p_uuid, 16);
 
         if (path)
                 *path = p;
-	else
-		free(p);
+        else
+                free(p);
 
-	free(buf);
+        free(buf);
         return 0;
 err:
         free(s);
@@ -361,26 +361,12 @@ int efi_get_boot_options(uint16_t **options) {
                 return -errno;
 
         while ((de = readdir(dir))) {
-                size_t n;
-                int a, b, c, d;
+                unsigned int id;
                 uint16_t *t;
 
-                if (strncmp(de->d_name, "Boot", 4) != 0)
+                if (de->d_name[0] == '.')
                         continue;
-
-                n = strlen(de->d_name);
-                if (n != 45)
-                        continue;
-
-                if (strcmp(de->d_name + 8, "-8be4df61-93ca-11d2-aa0d-00e098032b8c") != 0)
-                        continue;
-
-                a = de->d_name[4];
-                b = de->d_name[5];
-                c = de->d_name[6];
-                d = de->d_name[7];
-
-                if (!isdigit(a) || !isdigit(b) || !isdigit(c) || !isdigit(d))
+                if (sscanf(de->d_name, "Boot%04X-8be4df61-93ca-11d2-aa0d-00e098032b8c", &id) != 1)
                         continue;
 
                 t = realloc(list, (count + 1) * sizeof(uint16_t));
@@ -391,7 +377,7 @@ int efi_get_boot_options(uint16_t **options) {
                 }
 
                 list = t;
-                list[count ++] = (a - '0') * 1000 + (b - '0') * 100 + (c - '0') * 10 + (d - '0');
+                list[count++] = id;
 
         }
 
