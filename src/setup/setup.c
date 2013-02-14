@@ -866,9 +866,45 @@ finish:
         return new_id;
 }
 
+static int insert_order(uint16_t slot) {
+        uint16_t *order = NULL;
+        uint16_t *new_order;
+        int n_order;
+        int i;
+        int err = 0;
+
+        n_order = efi_get_boot_order(&order);
+        if (n_order <= 0) {
+                err = efi_set_boot_order(&slot, 1);
+                goto finish;
+        }
+
+        /* are we already in the boot order? */
+        for (i = 0; i < n_order; i++)
+                if (order[i] == slot)
+                        goto finish;
+
+        /* add us to the top of the list */
+        new_order = realloc(order, (n_order+1) * sizeof(uint16_t));
+        if (!new_order) {
+                err = -ENOMEM;
+                goto finish;
+        }
+        order = new_order;
+        memmove(&order[1], order, n_order * sizeof(uint16_t));
+        order[0] = slot;
+        efi_set_boot_order(order, n_order+1);
+
+finish:
+        free(order);
+        return err;
+}
+
 static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
-                             const uint8_t uuid[16], const char *path) {
+                             const uint8_t uuid[16], const char *path,
+                             bool in_order) {
         uint16_t *options = NULL;
+        uint16_t slot;
         int err;
 
         if (!arg_touch_variables)
@@ -879,14 +915,18 @@ static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
                 return 0;
         }
 
-        err = efi_set_boot_option(find_slot(uuid, path),
+        slot = find_slot(uuid, path);
+        err = efi_set_boot_option(slot,
                                   "Linux Boot Manager",
                                   part, pstart, psize,
                                   uuid, path);
         if (err < 0)
                 fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(err));
-        else
+        else {
                 fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
+                if (in_order)
+                        insert_order(slot);
+        }
 
         free(options);
         return 0;
@@ -1177,7 +1217,8 @@ int main(int argc, char*argv[]) {
 
                 //r = install_variables(1, 0x800, 0x200000,
                 //                      (uint8_t *)"\x1f\xcb\xc5\x7f\x4b\xfc\x4c\x2b\x91\xa3\x9c\x84\xfb\xcd\x9a\xf1",
-                //                      "/EFI/gummiboot/gummibootx64.efi");
+                //                      "/EFI/gummiboot/gummibootx64.efi",
+                //                      true);
                 break;
 
         case ACTION_REMOVE:

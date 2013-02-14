@@ -496,6 +496,10 @@ int efi_get_boot_order(uint16_t **order) {
         return (int) (l / sizeof(uint16_t));
 }
 
+int efi_set_boot_order(uint16_t *order, size_t n) {
+        return efi_set_variable(EFI_VENDOR_GLOBAL, "BootOrder", order, n * sizeof(uint16_t));
+}
+
 static int boot_id_hex(const char s[4]) {
         int i;
         int id = 0;

@@ -42,5 +42,6 @@ int efi_set_boot_option(uint16_t id, const char *title,
                         const char *path);
 
 int efi_get_boot_order(uint16_t **order);
+int efi_set_boot_order(uint16_t *order, size_t n);
 
 char *utf16_to_utf8(const void *s, size_t length);
