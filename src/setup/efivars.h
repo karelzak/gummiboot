@@ -25,11 +25,22 @@
 #include <sys/types.h>
 #include <inttypes.h>
 
+#define EFI_VARIABLE_NON_VOLATILE       0x0000000000000001
+#define EFI_VARIABLE_BOOTSERVICE_ACCESS 0x0000000000000002
+#define EFI_VARIABLE_RUNTIME_ACCESS     0x0000000000000004
+
 bool is_efi_boot(void);
 int efi_get_variable(const uint8_t vendor[16], const char *name, void **value, size_t *size);
+int efi_set_variable( const uint8_t vendor[16], const char *name, const void *value, size_t size);
 int efi_get_variable_string(const uint8_t vendor[16], const char *name, char **p);
 int efi_get_boot_option(uint16_t id, char **title, uint8_t part_uuid[16], char **path);
+
 int efi_get_boot_options(uint16_t **options);
+int efi_set_boot_option(uint16_t id, const char *title,
+                        uint32_t part, uint64_t pstart, uint64_t psize,
+                        const uint8_t part_uuid[16],
+                        const char *path);
+
 int efi_get_boot_order(uint16_t **order);
 
 char *utf16_to_utf8(const void *s, size_t length);

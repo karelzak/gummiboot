@@ -122,7 +122,64 @@ int efi_get_variable(
 finish:
         if (fd >= 0)
                 close(fd);
+        free(p);
+        return r;
+}
 
+int efi_set_variable(
+                const uint8_t vendor[16],
+                const char *name,
+                const void *value,
+                size_t size) {
+
+        struct var {
+                uint32_t attr;
+                char buf[];
+        } __attribute__((packed)) *buf = NULL;
+        char *p = NULL;
+        int fd = -1;
+        int r;
+
+        assert(vendor);
+        assert(name);
+        assert(value);
+        assert(size);
+
+        if (asprintf(&p,
+                     "/sys/firmware/efi/efivars/%s-%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                     name,
+                     vendor[0], vendor[1], vendor[2], vendor[3], vendor[4], vendor[5], vendor[6], vendor[7],
+                     vendor[8], vendor[9], vendor[10], vendor[11], vendor[12], vendor[13], vendor[14], vendor[15]) < 0)
+                return -ENOMEM;
+
+        fd = open(p, O_WRONLY|O_CREAT|O_NOCTTY|O_CLOEXEC);
+        if (fd < 0) {
+                r = -errno;
+                goto finish;
+        }
+
+        buf = malloc(sizeof(uint32_t) + size);
+        if (!buf) {
+                r = -errno;
+                goto finish;
+        }
+
+        buf->attr = EFI_VARIABLE_NON_VOLATILE|EFI_VARIABLE_BOOTSERVICE_ACCESS|EFI_VARIABLE_RUNTIME_ACCESS;
+        memcpy(buf->buf, value, size);
+
+        r = write(fd, buf, sizeof(uint32_t) + size);
+        if (r < 0)
+                goto finish;
+
+        if ((size_t)r != sizeof(uint32_t) + size) {
+                r = -EIO;
+                goto finish;
+        }
+
+finish:
+        if (fd >= 0)
+                close(fd);
+        free(buf);
         free(p);
         return r;
 }
@@ -155,14 +212,15 @@ static size_t utf16_size(const uint16_t *s) {
         return (l+1) * sizeof(uint16_t);
 }
 
+struct guid {
+        uint32_t u1;
+        uint16_t u2;
+        uint16_t u3;
+        uint8_t u4[8];
+} __attribute__((packed));
+
 static void efi_guid_to_id128(const void *guid, uint8_t *bytes) {
-        struct uuid {
-                uint32_t u1;
-                uint16_t u2;
-                uint16_t u3;
-                uint8_t u4[8];
-        } __attribute__((packed));
-        const struct uuid *uuid = guid;
+        const struct guid *uuid = guid;
 
         bytes[0] = (uuid->u1 >> 24) & 0xff;
         bytes[1] = (uuid->u1 >> 16) & 0xff;
@@ -175,6 +233,15 @@ static void efi_guid_to_id128(const void *guid, uint8_t *bytes) {
         memcpy(bytes+8, uuid->u4, sizeof(uuid->u4));
 }
 
+static void id128_to_efi_guid(const uint8_t *bytes, void *guid) {
+        struct guid *uuid = guid;
+
+        uuid->u1 = bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3];
+        uuid->u2 = bytes[4] << 8 | bytes[5];
+        uuid->u3 = bytes[6] << 8 | bytes[7];
+        memcpy(uuid->u4, bytes+8, sizeof(uuid->u4));
+}
+
 static char *tilt_slashes(char *s) {
         char *p;
 
@@ -185,37 +252,41 @@ static char *tilt_slashes(char *s) {
         return s;
 }
 
-int efi_get_boot_option(
-                uint16_t id,
-                char **title,
-                uint8_t part_uuid[16],
-                char **path) {
+#define LOAD_OPTION_ACTIVE            0x00000001
+#define MEDIA_DEVICE_PATH                   0x04
+#define MEDIA_HARDDRIVE_DP                  0x01
+#define MEDIA_FILEPATH_DP                   0x04
+#define SIGNATURE_TYPE_GUID                 0x02
+#define MBR_TYPE_EFI_PARTITION_TABLE_HEADER 0x02
+#define END_DEVICE_PATH_TYPE                0x7f
+#define END_ENTIRE_DEVICE_PATH_SUBTYPE      0xff
 
-        struct boot_option {
-                uint32_t attr;
-                uint16_t path_len;
-                uint16_t title[];
-        } __attribute__((packed));
+struct boot_option {
+        uint32_t attr;
+        uint16_t path_len;
+        uint16_t title[];
+} __attribute__((packed));
 
-        struct drive_path {
-                uint32_t part_nr;
-                uint64_t part_start;
-                uint64_t part_size;
-                char signature[16];
-                uint8_t mbr_type;
-                uint8_t signature_type;
-        } __attribute__((packed));
+struct drive_path {
+        uint32_t part_nr;
+        uint64_t part_start;
+        uint64_t part_size;
+        char signature[16];
+        uint8_t mbr_type;
+        uint8_t signature_type;
+} __attribute__((packed));
 
-        struct device_path {
-                uint8_t type;
-                uint8_t sub_type;
-                uint16_t length;
-                union {
-                        uint16_t path[0];
-                        struct drive_path drive;
-                };
-        } __attribute__((packed));
+struct device_path {
+        uint8_t type;
+        uint8_t sub_type;
+        uint16_t length;
+        union {
+                uint16_t path[0];
+                struct drive_path drive;
+        };
+} __attribute__((packed));
 
+int efi_get_boot_option(uint16_t id, char **title, uint8_t part_uuid[16], char **path) {
         char boot_id[9];
         uint8_t *buf = NULL;
         size_t l;
@@ -264,31 +335,27 @@ int efi_get_boot_option(
                                 break;
 
                         /* Type 0x7F – End of Hardware Device Path, Sub-Type 0xFF – End Entire Device Path */
-                        if (dpath->type == 0x7f && dpath->sub_type == 0xff)
+                        if (dpath->type == END_DEVICE_PATH_TYPE && dpath->sub_type == END_ENTIRE_DEVICE_PATH_SUBTYPE)
                                 break;
 
                         dnext += dpath->length;
 
-                        /* Type 0x04 – Media Device Path */
-                        if (dpath->type != 0x04)
+                        if (dpath->type != MEDIA_DEVICE_PATH)
                                 continue;
 
-                        /* Sub-Type 1 – Hard Drive */
-                        if (dpath->sub_type == 0x01) {
-                                /* 0x02 – GUID Partition Table */
-                                if (dpath->drive.mbr_type != 0x02)
+                        if (dpath->sub_type == MEDIA_HARDDRIVE_DP) {
+                                /* GPT Partition Table */
+                                if (dpath->drive.mbr_type != MBR_TYPE_EFI_PARTITION_TABLE_HEADER)
                                         continue;
 
-                                /* 0x02 – GUID signature */
-                                if (dpath->drive.signature_type != 0x02)
+                                if (dpath->drive.signature_type != SIGNATURE_TYPE_GUID)
                                         continue;
 
                                 efi_guid_to_id128(dpath->drive.signature, p_uuid);
                                 continue;
                         }
 
-                        /* Sub-Type 4 – File Path */
-                        if (dpath->sub_type == 0x04) {
+                        if (dpath->sub_type == MEDIA_FILEPATH_DP) {
                                 p = utf16_to_utf8(dpath->path, dpath->length-4);
                                 tilt_slashes(p);
                                 continue;
@@ -318,6 +385,83 @@ err:
         return err;
 }
 
+static void to_utf16(uint16_t *dest, const char *src) {
+        int i;
+
+        for (i = 0; src[i] != '\0'; i++)
+                dest[i] = src[i];
+        dest[i] = '\0';
+}
+
+int efi_set_boot_option(uint16_t id, const char *title,
+                        uint32_t part, uint64_t pstart, uint64_t psize,
+                        const uint8_t part_uuid[16],
+                        const char *path) {
+        char boot_id[9];
+        char *buf;
+        size_t size;
+        size_t title_len;
+        size_t path_len;
+        struct boot_option *option;
+        struct device_path *devicep;
+        int err;
+
+        title_len = (strlen(title)+1) * 2;
+        path_len = (strlen(path)+1) * 2;
+
+        buf = calloc(sizeof(struct boot_option) + title_len +
+                     sizeof(struct drive_path) +
+                     sizeof(struct device_path) + path_len, 1);
+        if (!buf) {
+                err = -ENOMEM;
+                goto finish;
+        }
+
+        /* header */
+        option = (struct boot_option *)buf;
+        option->attr = LOAD_OPTION_ACTIVE;
+        option->path_len = offsetof(struct device_path, drive) + sizeof(struct drive_path) +
+                           offsetof(struct device_path, path) + path_len +
+                           offsetof(struct device_path, path);
+        to_utf16(option->title, title);
+        size = offsetof(struct boot_option, title) + title_len;
+
+        /* partition info */
+        devicep = (struct device_path *)(buf + size);
+        devicep->type = MEDIA_DEVICE_PATH;
+        devicep->sub_type = MEDIA_HARDDRIVE_DP;
+        devicep->length = offsetof(struct device_path, drive) + sizeof(struct drive_path);
+        devicep->drive.part_nr = part;
+        devicep->drive.part_start = pstart;
+        devicep->drive.part_size =  psize;
+        devicep->drive.signature_type = SIGNATURE_TYPE_GUID;
+        devicep->drive.mbr_type = MBR_TYPE_EFI_PARTITION_TABLE_HEADER;
+        id128_to_efi_guid(part_uuid, devicep->drive.signature);
+        size += devicep->length;
+
+        /* path to loader */
+        devicep = (struct device_path *)(buf + size);
+        devicep->type = MEDIA_DEVICE_PATH;
+        devicep->sub_type = MEDIA_FILEPATH_DP;
+        devicep->length = offsetof(struct device_path, path) + path_len;
+        to_utf16(devicep->path, path);
+        size += devicep->length;
+
+        /* end of path */
+        devicep = (struct device_path *)(buf + size);
+        devicep->type = END_DEVICE_PATH_TYPE;
+        devicep->sub_type = END_ENTIRE_DEVICE_PATH_SUBTYPE;
+        devicep->length = offsetof(struct device_path, path);
+        size += devicep->length;
+
+        snprintf(boot_id, sizeof(boot_id), "Boot%04X", id);
+        err = efi_set_variable(EFI_VENDOR_GLOBAL, boot_id, buf, size);
+
+finish:
+        free(buf);
+        return err;
+}
+
 int efi_get_boot_order(uint16_t **order) {
         void *buf;
         size_t l;
@@ -342,10 +486,9 @@ int efi_get_boot_order(uint16_t **order) {
 }
 
 static int cmp_uint16(const void *a, const void *b) {
-        const uint16_t *i1 = a;
-        const uint16_t *i2 = a;
+        const uint16_t *i1 = a, *i2 = a;
 
-        return *i1 - *i2;
+        return (int)*i1 - (int)*i2;
 }
 
 static int boot_id_hex(const char s[4]) {

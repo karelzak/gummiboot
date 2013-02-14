@@ -744,8 +744,8 @@ static int copy_one_file(const char *name) {
 
         if (strncmp(name, "gummiboot", 9) == 0) {
                 int k;
-                /* Create the fallback names for removable devices */
 
+                /* Create the fallback names for removable devices */
                 if (asprintf(&v, "%s/EFI/BOOT/%s", arg_path, name + 5) < 0) {
                         fprintf(stderr, "Out of memory.\n");
                         r = -ENOMEM;
@@ -779,7 +779,6 @@ static int install_binaries(void) {
                  * files (unless there are newer ones already), but we
                  * won't create the directories for them in the first
                  * place. */
-
                 r = create_dirs();
                 if (r < 0)
                         return r;
@@ -820,6 +819,11 @@ static int install_variables(void) {
                 return 0;
         }
 
+        //efi_set_boot_option(0xaffe,
+        //                    "Linux",
+        //                    1, 0x800, 0x20000,
+        //                    (uint8_t *)"\x1f\xcb\xc5\x7f\x4b\xfc\x4c\x2b\x91\xa3\x9c\x84\xfb\xcd\x9a\xf1",
+        //                    "\\EFI\\gummiboot\\gummibootx64.efi");
         return 0;
 }
 
@@ -1020,7 +1024,6 @@ static int parse_argv(int argc, char *argv[]) {
         assert(argv);
 
         while ((c = getopt_long(argc, argv, "h", options, NULL)) >= 0) {
-
                 switch (c) {
 
                 case 'h':
