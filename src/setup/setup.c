@@ -76,7 +76,22 @@ static int help(void) {
         return 0;
 }
 
-static int verify_esp(void) {
+static int uuid_parse(const char *s, uint8_t uuid[16]) {
+        int u[16];
+        int i;
+
+        if (sscanf(s, "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+            &u[0], &u[1], &u[2], &u[3], &u[4], &u[5], &u[6], &u[7],
+            &u[8], &u[9], &u[10], &u[11], &u[12], &u[13], &u[14], &u[15]) != 16)
+                return -EINVAL;
+
+        for (i = 0; i < 16; i++)
+                uuid[i] = u[i];
+
+        return 0;
+}
+
+static int verify_esp(uint32_t *part, uint64_t *pstart, uint64_t *psize, uint8_t uuid[16]) {
         const char *p;
         struct statfs sfs;
         struct stat st, st2;
@@ -207,14 +222,51 @@ static int verify_esp(void) {
                 goto fail;
         }
 
+        errno = 0;
+        r = blkid_probe_lookup_value(b, "PART_ENTRY_UUID", &v, NULL);
+        if (r != 0) {
+                fprintf(stderr, "Failed to probe partition entry UUID %s: %s\n", p, strerror(errno ? errno : EIO));
+                r = errno ? -errno : -EIO;
+                goto fail;
+        }
+        uuid_parse(v, uuid);
+
+        errno = 0;
+        r = blkid_probe_lookup_value(b, "PART_ENTRY_NUMBER", &v, NULL);
+        if (r != 0) {
+                fprintf(stderr, "Failed to probe partition number %s: %s\n", p, strerror(errno ? errno : EIO));
+                r = errno ? -errno : -EIO;
+                goto fail;
+        }
+        *part = strtoul(v, NULL, 10);
+
+        errno = 0;
+        r = blkid_probe_lookup_value(b, "PART_ENTRY_OFFSET", &v, NULL);
+        if (r != 0) {
+                fprintf(stderr, "Failed to probe partition offset %s: %s\n", p, strerror(errno ? errno : EIO));
+                r = errno ? -errno : -EIO;
+                goto fail;
+        }
+        *pstart = strtoul(v, NULL, 10);
+
+        errno = 0;
+        r = blkid_probe_lookup_value(b, "PART_ENTRY_SIZE", &v, NULL);
+        if (r != 0) {
+                fprintf(stderr, "Failed to probe partition size %s: %s\n", p, strerror(errno ? errno : EIO));
+                r = errno ? -errno : -EIO;
+                goto fail;
+        }
+        *psize = strtoul(v, NULL, 10);
+
         blkid_free_probe(b);
         arg_path = p;
+
+
         return 0;
 
 fail:
         if (b)
                 blkid_free_probe(b);
-
         return r;
 }
 
@@ -811,13 +863,12 @@ static int install_binaries(void) {
 }
 
 static bool same_entry(uint16_t id, const uint8_t uuid[16], const char *path) {
-        char *otitle = NULL;
         char *opath = NULL;
         uint8_t ouuid[16];
         int err;
         bool same = false;
 
-        err = efi_get_boot_option(id, &otitle, ouuid, &opath);
+        err = efi_get_boot_option(id, NULL, ouuid, &opath);
         if (err < 0)
                 return false;
         if (memcmp(uuid, ouuid, 16) != 0)
@@ -829,7 +880,6 @@ static bool same_entry(uint16_t id, const uint8_t uuid[16], const char *path) {
         same = true;
 
 finish:
-        free(otitle);
         free(opath);
         return same;
 }
@@ -1162,6 +1212,10 @@ int main(int argc, char*argv[]) {
                 { "update",  ACTION_UPDATE },
                 { "remove",  ACTION_REMOVE },
         };
+        uint8_t uuid[16] = "";
+        uint32_t part = 0;
+        uint64_t pstart = 0;
+        uint64_t psize = 0;
         unsigned int i;
         int r, q;
 
@@ -1189,7 +1243,7 @@ int main(int argc, char*argv[]) {
                 goto finish;
         }
 
-        r = verify_esp();
+        r = verify_esp(&part, &pstart, &psize, uuid);
         if (r == -ENODEV && !arg_path)
                 fprintf(stderr, "You might want to use --path= to indicate the path to your ESP, in case it is not mounted to /boot.\n");
         if (r < 0)
@@ -1212,10 +1266,9 @@ int main(int argc, char*argv[]) {
                 if (r < 0)
                         goto finish;
 
-                //r = install_variables(1, 0x800, 0x200000,
-                //                      (uint8_t *)"\x1f\xcb\xc5\x7f\x4b\xfc\x4c\x2b\x91\xa3\x9c\x84\xfb\xcd\x9a\xf1",
-                //                      "/EFI/gummiboot/gummibootx64.efi",
-                //                      true);
+                r = install_variables(part, pstart, psize, uuid,
+                                      "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi",
+                                      true);
                 break;
 
         case ACTION_REMOVE:
