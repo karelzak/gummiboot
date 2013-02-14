@@ -820,15 +820,12 @@ static bool same_entry(uint16_t id, const uint8_t uuid[16], const char *path) {
         err = efi_get_boot_option(id, &otitle, ouuid, &opath);
         if (err < 0)
                 return false;
-printf("check uuid\n");
         if (memcmp(uuid, ouuid, 16) != 0)
                 goto finish;
 
-printf("check path %04X %s %s\n", id, path, opath);
         if (!streq(path, opath))
                 goto finish;
 
-printf("same %04X\n", id);
         same = true;
 
 finish:
