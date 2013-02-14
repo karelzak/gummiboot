@@ -152,7 +152,7 @@ int efi_set_variable(
                      vendor[8], vendor[9], vendor[10], vendor[11], vendor[12], vendor[13], vendor[14], vendor[15]) < 0)
                 return -ENOMEM;
 
-        fd = open(p, O_WRONLY|O_CREAT|O_NOCTTY|O_CLOEXEC);
+        fd = open(p, O_WRONLY|O_CREAT|O_NOCTTY|O_CLOEXEC, 0644);
         if (fd < 0) {
                 r = -errno;
                 goto finish;
@@ -242,12 +242,22 @@ static void id128_to_efi_guid(const uint8_t *bytes, void *guid) {
         memcpy(uuid->u4, bytes+8, sizeof(uuid->u4));
 }
 
-static char *tilt_slashes(char *s) {
+static char *tilt_backslashes(char *s) {
         char *p;
 
         for (p = s; *p; p++)
                 if (*p == '\\')
                         *p = '/';
+
+        return s;
+}
+
+static uint16_t *tilt_slashes(uint16_t *s) {
+        uint16_t *p;
+
+        for (p = s; *p; p++)
+                if (*p == '/')
+                        *p = '\\';
 
         return s;
 }
@@ -357,7 +367,7 @@ int efi_get_boot_option(uint16_t id, char **title, uint8_t part_uuid[16], char *
 
                         if (dpath->sub_type == MEDIA_FILEPATH_DP) {
                                 p = utf16_to_utf8(dpath->path, dpath->length-4);
-                                tilt_slashes(p);
+                                tilt_backslashes(p);
                                 continue;
                         }
                 }
@@ -445,6 +455,7 @@ int efi_set_boot_option(uint16_t id, const char *title,
         devicep->sub_type = MEDIA_FILEPATH_DP;
         devicep->length = offsetof(struct device_path, path) + path_len;
         to_utf16(devicep->path, path);
+        tilt_slashes(devicep->path);
         size += devicep->length;
 
         /* end of path */
@@ -485,12 +496,6 @@ int efi_get_boot_order(uint16_t **order) {
         return (int) (l / sizeof(uint16_t));
 }
 
-static int cmp_uint16(const void *a, const void *b) {
-        const uint16_t *i1 = a, *i2 = a;
-
-        return (int)*i1 - (int)*i2;
-}
-
 static int boot_id_hex(const char s[4]) {
         int i;
         int id = 0;
@@ -504,6 +509,12 @@ static int boot_id_hex(const char s[4]) {
                         return -1;
 
         return id;
+}
+
+static int cmp_uint16(const void *_a, const void *_b) {
+        const uint16_t *a = _a, *b = _b;
+
+        return (int)*a - (int)*b;
 }
 
 int efi_get_boot_options(uint16_t **options) {
@@ -541,10 +552,9 @@ int efi_get_boot_options(uint16_t **options) {
                         closedir(dir);
                         return -ENOMEM;
                 }
-
                 list = t;
-                list[count++] = id;
 
+                list[count++] = id;
         }
 
         closedir(dir);

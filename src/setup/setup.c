@@ -810,7 +810,67 @@ static int install_binaries(void) {
         return r;
 }
 
-static int install_variables(void) {
+static bool same_entry(uint16_t id, const uint8_t uuid[16], const char *path) {
+        char *otitle = NULL;
+        char *opath = NULL;
+        uint8_t ouuid[16];
+        int err;
+        bool same = false;
+
+        err = efi_get_boot_option(id, &otitle, ouuid, &opath);
+        if (err < 0)
+                return false;
+printf("check uuid\n");
+        if (memcmp(uuid, ouuid, 16) != 0)
+                goto finish;
+
+printf("check path %04X %s %s\n", id, path, opath);
+        if (!streq(path, opath))
+                goto finish;
+
+printf("same %04X\n", id);
+        same = true;
+
+finish:
+        free(otitle);
+        free(opath);
+        return same;
+}
+
+static uint16_t find_slot(const uint8_t uuid[16], const char *path) {
+        uint16_t *options = NULL;
+        int n_options;
+        int i;
+        uint16_t new_id = 0;
+
+        n_options = efi_get_boot_options(&options);
+        if (n_options < 0)
+                return new_id;
+
+        /* find already existing gummiboot entry */
+        for (i = 0; i < n_options; i++)
+                if (same_entry(options[i], uuid, path)) {
+                        new_id = i;
+                        goto finish;
+                }
+
+        /* find free slot in the sorted BootXXXX variable list */
+        for (i = 0; i < n_options; i++)
+                if (i != options[i]) {
+                        new_id = i;
+                        goto finish;
+                }
+
+finish:
+        free(options);
+        return new_id;
+}
+
+static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
+                             const uint8_t uuid[16], const char *path) {
+        uint16_t *options = NULL;
+        int err;
+
         if (!arg_touch_variables)
                 return 0;
 
@@ -819,11 +879,16 @@ static int install_variables(void) {
                 return 0;
         }
 
-        //efi_set_boot_option(0xaffe,
-        //                    "Linux",
-        //                    1, 0x800, 0x20000,
-        //                    (uint8_t *)"\x1f\xcb\xc5\x7f\x4b\xfc\x4c\x2b\x91\xa3\x9c\x84\xfb\xcd\x9a\xf1",
-        //                    "\\EFI\\gummiboot\\gummibootx64.efi");
+        err = efi_set_boot_option(find_slot(uuid, path),
+                                  "Linux Boot Manager",
+                                  part, pstart, psize,
+                                  uuid, path);
+        if (err < 0)
+                fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(err));
+        else
+                fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
+
+        free(options);
         return 0;
 }
 
@@ -1110,7 +1175,9 @@ int main(int argc, char*argv[]) {
                 if (r < 0)
                         goto finish;
 
-                r = install_variables();
+                //r = install_variables(1, 0x800, 0x200000,
+                //                      (uint8_t *)"\x1f\xcb\xc5\x7f\x4b\xfc\x4c\x2b\x91\xa3\x9c\x84\xfb\xcd\x9a\xf1",
+                //                      "/EFI/gummiboot/gummibootx64.efi");
                 break;
 
         case ACTION_REMOVE:
