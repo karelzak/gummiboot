@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/mman.h>
 #include <dirent.h>
 #include <ctype.h>
 #include <limits.h>
@@ -44,7 +45,6 @@
 /* TODO:
  *
  * - Generate loader.conf from /etc/os-release?
- * - fix seek nonsense when looking for file version
  */
 
 static enum action {
@@ -268,55 +268,55 @@ fail:
         return r;
 }
 
+/* search for "#### LoaderInfo: gummiboot 31 ####" string inside the binary */
 static int get_file_version(FILE *f, char **v) {
-        size_t k;
-        char s[LINE_MAX], *e, *x;
+        struct stat st;
+        char *buf;
+        const char *s, *e;
+        char *x = NULL;
+        int r = 0;
 
         assert(f);
         assert(v);
 
-        for (;;) {
-                k = fread(s, 1, 17, f);
-                if (ferror(f)) {
-                        fprintf(stderr, "Failed to read file: %m\n");
-                        return -errno;
-                }
-
-                if (k < 17) {
-                        *v = NULL;
-                        return 0;
-                }
-
-                if (strncmp(s, "#### LoaderInfo: ", 17) == 0)
-                        break;
-
-                if (fseek(f, -16, SEEK_CUR) < 0) {
-                        fprintf(stderr, "Failed to seek backwards in: %m\n");
-                        return -errno;
-                }
-        }
-
-        k = fread(s, 1, sizeof(s)-1, f);
-        if (ferror(f)) {
-                fprintf(stderr, "Failed to read file: %m\n");
+        if (fstat(fileno(f), &st) < 0)
                 return -errno;
-        }
-        s[k] = 0;
 
-        e = strstr(s, " ####");
-        if (!e) {
+        if (st.st_size < 27)
+                return 0;
+
+        buf = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fileno(f), 0);
+        if (buf == MAP_FAILED)
+                return -errno;
+
+        s = memmem(buf, st.st_size, "#### LoaderInfo: ", 17);
+        if (!s)
+                goto finish;
+        if (st.st_size - (s - buf) < 8) {
                 fprintf(stderr, "Malformed version string.\n");
-                return -EINVAL;
+                goto finish;
+        }
+        s += 17;
+
+        e = memmem(s, st.st_size - (s - buf), " ####", 5);
+        if (!e || e - s < 3) {
+                fprintf(stderr, "Malformed version string.\n");
+                r = -EINVAL;
+                goto finish;
         }
 
         x = strndup(s, e - s);
         if (!x) {
                 fprintf(stderr, "Out of memory.\n");
-                return -ENOMEM;
+                r = -ENOMEM;
+                goto finish;
         }
+        r = 1;
 
+finish:
+        munmap(buf, st.st_size);
         *v = x;
-        return 1;
+        return r;
 }
 
 static int enumerate_binaries(const char *path, const char *prefix) {
