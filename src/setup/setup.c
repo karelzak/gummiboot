@@ -43,8 +43,6 @@
 
 /* TODO:
  *
- * - Maybe write EFI variables as right-away?
- * - Make backups of foreign files we overwrite
  * - Generate loader.conf from /etc/os-release?
  * - fix seek nonsense when looking for file version
  */
@@ -884,20 +882,22 @@ finish:
         return same;
 }
 
-static uint16_t find_slot(const uint8_t uuid[16], const char *path) {
+static int find_slot(const uint8_t uuid[16], const char *path, uint16_t *id) {
         uint16_t *options = NULL;
         int n_options;
         int i;
         uint16_t new_id = 0;
+        bool existing = false;
 
         n_options = efi_get_boot_options(&options);
         if (n_options < 0)
-                return new_id;
+                return n_options;
 
         /* find already existing gummiboot entry */
         for (i = 0; i < n_options; i++)
                 if (same_entry(options[i], uuid, path)) {
                         new_id = i;
+                        existing = true;
                         goto finish;
                 }
 
@@ -909,11 +909,12 @@ static uint16_t find_slot(const uint8_t uuid[16], const char *path) {
                 }
 
 finish:
+        *id = new_id;
         free(options);
-        return new_id;
+        return existing ? 1 : 0;
 }
 
-static int insert_order(uint16_t slot) {
+static int insert_into_order(uint16_t slot) {
         uint16_t *order = NULL;
         uint16_t *new_order;
         int n_order;
@@ -947,6 +948,32 @@ finish:
         return err;
 }
 
+static int remove_from_order(uint16_t slot) {
+        uint16_t *order = NULL;
+        int n_order;
+        int i;
+        int err = 0;
+
+        n_order = efi_get_boot_order(&order);
+        if (n_order < 0)
+                return n_order;
+        if (n_order == 0)
+                return 0;
+
+        for (i = 0; i < n_order; i++) {
+                if (order[i] != slot)
+                        continue;
+
+                if (i+1 < n_order)
+                        memmove(&order[i], &order[i+1], (n_order - i) * sizeof(uint16_t));
+                efi_set_boot_order(order, n_order-1);
+                break;
+        }
+
+        free(order);
+        return err;
+}
+
 static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
                              const uint8_t uuid[16], const char *path,
                              bool in_order) {
@@ -962,8 +989,13 @@ static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
                 return 0;
         }
 
-        slot = find_slot(uuid, path);
-        err = efi_set_boot_option(slot,
+        err = find_slot(uuid, path, &slot);
+        if (err < 0) {
+                fprintf(stderr, "Failed to determine current boot order: %s\n", strerror(err));
+                goto finish;
+        }
+
+        err = efi_add_boot_option(slot,
                                   "Linux Boot Manager",
                                   part, pstart, psize,
                                   uuid, path);
@@ -972,9 +1004,10 @@ static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
         else {
                 fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
                 if (in_order)
-                        insert_order(slot);
+                        insert_into_order(slot);
         }
 
+finish:
         free(options);
         return 0;
 }
@@ -1147,12 +1180,26 @@ static int remove_binaries(void) {
         return r;
 }
 
-static int remove_variables(void) {
+static int remove_variables(const uint8_t uuid[16], const char *path, bool in_order) {
+        uint16_t slot;
+        int err;
+
         if (!arg_touch_variables)
                 return 0;
 
         if (!is_efi_boot())
                 return 0;
+
+        err = find_slot(uuid, path, &slot);
+        if (err != 1)
+                return 0;
+
+        err = efi_remove_boot_option(slot);
+        if (err < 0)
+                return err;
+
+        if (in_order)
+                remove_from_order(slot);
 
         return 0;
 }
@@ -1274,7 +1321,7 @@ int main(int argc, char*argv[]) {
         case ACTION_REMOVE:
                 r = remove_binaries();
 
-                q = remove_variables();
+                q = remove_variables(uuid, "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi", true);
                 if (q < 0 && r == 0)
                         r = q;
                 break;

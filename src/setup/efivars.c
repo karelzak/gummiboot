@@ -142,8 +142,6 @@ int efi_set_variable(
 
         assert(vendor);
         assert(name);
-        assert(value);
-        assert(size);
 
         if (asprintf(&p,
                      "/sys/firmware/efi/efivars/%s-%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
@@ -151,6 +149,11 @@ int efi_set_variable(
                      vendor[0], vendor[1], vendor[2], vendor[3], vendor[4], vendor[5], vendor[6], vendor[7],
                      vendor[8], vendor[9], vendor[10], vendor[11], vendor[12], vendor[13], vendor[14], vendor[15]) < 0)
                 return -ENOMEM;
+
+        if (size == 0) {
+                r = unlink(p);
+                goto finish;
+        }
 
         fd = open(p, O_WRONLY|O_CREAT|O_NOCTTY|O_CLOEXEC, 0644);
         if (fd < 0) {
@@ -403,7 +406,7 @@ static void to_utf16(uint16_t *dest, const char *src) {
         dest[i] = '\0';
 }
 
-int efi_set_boot_option(uint16_t id, const char *title,
+int efi_add_boot_option(uint16_t id, const char *title,
                         uint32_t part, uint64_t pstart, uint64_t psize,
                         const uint8_t part_uuid[16],
                         const char *path) {
@@ -471,6 +474,13 @@ int efi_set_boot_option(uint16_t id, const char *title,
 finish:
         free(buf);
         return err;
+}
+
+int efi_remove_boot_option(uint16_t id) {
+        char boot_id[9];
+
+        snprintf(boot_id, sizeof(boot_id), "Boot%04X", id);
+        return efi_set_variable(EFI_VENDOR_GLOBAL, boot_id, NULL, 0);
 }
 
 int efi_get_boot_order(uint16_t **order) {
