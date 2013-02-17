@@ -289,13 +289,9 @@ static int get_file_version(FILE *f, char **v) {
         if (buf == MAP_FAILED)
                 return -errno;
 
-        s = memmem(buf, st.st_size, "#### LoaderInfo: ", 17);
+        s = memmem(buf, st.st_size - 8, "#### LoaderInfo: ", 17);
         if (!s)
                 goto finish;
-        if (st.st_size - (s - buf) < 8) {
-                fprintf(stderr, "Malformed version string.\n");
-                goto finish;
-        }
         s += 17;
 
         e = memmem(s, st.st_size - (s - buf), " ####", 5);
