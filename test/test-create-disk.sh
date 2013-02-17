@@ -15,6 +15,8 @@ mount $LOOP mnt
 mkdir -p mnt/EFI/BOOT
 cp gummibootx64.efi mnt/EFI/BOOT/BOOTX64.EFI
 
+[ -e /boot/shellx64.efi ] && cp /boot/shellx64.efi mnt/
+
 # install entries
 mkdir -p mnt/loader/entries
 echo -e "timeout 3\n" > mnt/loader/loader.conf
