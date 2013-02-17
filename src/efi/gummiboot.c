@@ -1877,7 +1877,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 /* export the selected boot entry to the system */
                 efivar_set(L"LoaderEntrySelected", entry->file, FALSE);
 
-                uefi_call_wrapper(BS->SetWatchdogTimer, 4, 5, 0x10000, 0, NULL);
+                uefi_call_wrapper(BS->SetWatchdogTimer, 4, 5 * 60, 0x10000, 0, NULL);
                 err = image_start(image, &config, entry);
 
                 if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) {
