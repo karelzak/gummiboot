@@ -1869,6 +1869,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 entry = config.entries[config.idx_default];
                 if (menu) {
                         efivar_set_time_usec(L"LoaderTimeMenuUSec", 0);
+                        uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0x10000, 0, NULL);
                         if (!menu_run(&config, &entry, loaded_image_path))
                                 break;
                 }
@@ -1876,6 +1877,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                 /* export the selected boot entry to the system */
                 efivar_set(L"LoaderEntrySelected", entry->file, FALSE);
 
+                uefi_call_wrapper(BS->SetWatchdogTimer, 4, 5, 0x10000, 0, NULL);
                 err = image_start(image, &config, entry);
 
                 if (err == EFI_ACCESS_DENIED || err == EFI_SECURITY_VIOLATION) {
