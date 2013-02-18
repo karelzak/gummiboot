@@ -415,8 +415,6 @@ static int print_efi_option(uint16_t id, bool in_order) {
         int r = 0;
 
         r = efi_get_boot_option(id, &title, partition, &path);
-        if (r == -ENOENT)
-                goto finish;
         if (r < 0) {
                 fprintf(stderr, "Failed to read EFI boot entry %i.\n", id);
                 goto finish;
@@ -450,7 +448,10 @@ static int status_variables(void) {
 
         n_options = efi_get_boot_options(&options);
         if (n_options < 0) {
-                fprintf(stderr, "\tFailed to read EFI boot entries.\n");
+                if (n_options == -ENOENT)
+                        fprintf(stderr, "\tFailed to access EFI variables. Is the \"efivarfs\" filesystem mounted?\n");
+                else
+                        fprintf(stderr, "\tFailed to read EFI boot entries.\n");
                 r = n_options;
                 goto finish;
         }
@@ -981,7 +982,10 @@ static int install_variables(const char *esp_path,
 
         err = find_slot(uuid, path, &slot);
         if (err < 0) {
-                fprintf(stderr, "Failed to determine current boot order: %s\n", strerror(err));
+                if (err == -ENOENT)
+                        fprintf(stderr, "Failed to access EFI variables. Is the \"efivarfs\" filesystem mounted?\n");
+                else
+                        fprintf(stderr, "Failed to determine current boot order: %s\n", strerror(err));
                 goto finish;
         }
 
