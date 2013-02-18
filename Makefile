@@ -1,4 +1,4 @@
-VERSION=19
+VERSION=20
 
 ifeq ($(strip $(V)),)
 	E = @echo
@@ -74,7 +74,7 @@ gummiboot$(MACHINE_TYPE_NAME).efi: src/efi/gummiboot.so
 	  --target=efi-app-$(ARCH) $< $@
 
 # ------------------------------------------------------------------------------
-gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c
+gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c Makefile
 	$(E) "  CCLD     " $@
 	$(Q) $(CC) -O0 -g -Wall -Wextra \
 	  -Wno-unused-parameter -D_GNU_SOURCE \
