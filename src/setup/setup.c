@@ -4,6 +4,7 @@
   This file is part of systemd.
 
   Copyright 2013 Lennart Poettering
+  Copyright 2013 Kay Sievers
 
   systemd is free software; you can redistribute it and/or modify it
   under the terms of the GNU Lesser General Public License as published by
@@ -144,7 +145,7 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         free(t);
         if (!b) {
                 if (errno != 0) {
-                        fprintf(stderr, "Failed to open file system %s: %s\n", p, strerror(errno));
+                        fprintf(stderr, "Failed to open file system %s: %m\n", p);
                         return -errno;
                 }
 
@@ -168,16 +169,16 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
                 r = -ENODEV;
                 goto fail;
         } else if (r != 0) {
-                fprintf(stderr, "Failed to probe file system %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe file system %s: %s\n", p, strerror(-r));
                 goto fail;
         }
 
         errno = 0;
         r = blkid_probe_lookup_value(b, "TYPE", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe file system type %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe file system type %s: %s\n", p, strerror(-r));
                 goto fail;
         }
 
@@ -190,8 +191,8 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_SCHEME", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition scheme %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition scheme %s: %s\n", p, strerror(-r));
                 goto fail;
         }
 
@@ -204,22 +205,22 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_TYPE", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition type UUID %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition type UUID %s: %s\n", p, strerror(-r));
                 goto fail;
         }
 
         if (strcmp(v, "c12a7328-f81f-11d2-ba4b-00a0c93ec93b") != 0) {
-                fprintf(stderr, "File system %s is not an EFI System Partition (ESP).\n", p);
                 r = -ENODEV;
+                fprintf(stderr, "File system %s is not an EFI System Partition (ESP).\n", p);
                 goto fail;
         }
 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_UUID", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition entry UUID %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition entry UUID %s: %s\n", p, strerror(-r));
                 goto fail;
         }
         uuid_parse(v, uuid);
@@ -227,8 +228,8 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_NUMBER", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition number %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition number %s: %s\n", p, strerror(-r));
                 goto fail;
         }
         *part = strtoul(v, NULL, 10);
@@ -236,8 +237,8 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_OFFSET", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition offset %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition offset %s: %s\n", p, strerror(-r));
                 goto fail;
         }
         *pstart = strtoul(v, NULL, 10);
@@ -245,8 +246,8 @@ static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t 
         errno = 0;
         r = blkid_probe_lookup_value(b, "PART_ENTRY_SIZE", &v, NULL);
         if (r != 0) {
-                fprintf(stderr, "Failed to probe partition size %s: %s\n", p, strerror(errno ? errno : EIO));
                 r = errno ? -errno : -EIO;
+                fprintf(stderr, "Failed to probe partition size %s: %s\n", p, strerror(-r));
                 goto fail;
         }
         *psize = strtoul(v, NULL, 10);
@@ -809,7 +810,7 @@ static int install_binaries(const char *esp_path, bool force) {
 
         d = opendir("/usr/lib/gummiboot");
         if (!d) {
-                fprintf(stderr, "Failed to open /usr/lib/gummiboot: %s\n", strerror(errno));
+                fprintf(stderr, "Failed to open /usr/lib/gummiboot: %m\n");
                 return -errno;
         }
 
@@ -960,7 +961,7 @@ static int install_variables(const char *esp_path,
         char *p = NULL;
         uint16_t *options = NULL;
         uint16_t slot;
-        int err;
+        int r;
 
         if (!is_efi_boot()) {
                 fprintf(stderr, "Not booted with EFI, skipping EFI variable checks.\n");
@@ -974,28 +975,28 @@ static int install_variables(const char *esp_path,
 
         if (access(p, F_OK) < 0) {
                 if (errno == ENOENT)
-                        err = 0;
+                        r = 0;
                 else
-                        err = -errno;
+                        r = -errno;
                 goto finish;
         }
 
-        err = find_slot(uuid, path, &slot);
-        if (err < 0) {
-                if (err == -ENOENT)
+        r = find_slot(uuid, path, &slot);
+        if (r < 0) {
+                if (r == -ENOENT)
                         fprintf(stderr, "Failed to access EFI variables. Is the \"efivarfs\" filesystem mounted?\n");
                 else
-                        fprintf(stderr, "Failed to determine current boot order: %s\n", strerror(err));
+                        fprintf(stderr, "Failed to determine current boot order: %s\n", strerror(-r));
                 goto finish;
         }
 
-        if (force || err == false) {
-                err = efi_add_boot_option(slot,
+        if (force || r == false) {
+                r = efi_add_boot_option(slot,
                                           "Linux Boot Manager",
                                           part, pstart, psize,
                                           uuid, path);
-                if (err < 0) {
-                        fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(err));
+                if (r < 0) {
+                        fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(-r));
                         goto finish;
                 }
                 fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
@@ -1005,7 +1006,7 @@ static int install_variables(const char *esp_path,
 finish:
         free(p);
         free(options);
-        return err;
+        return r;
 }
 
 static int delete_nftw(const char *path, const struct stat *sb, int typeflag, struct FTW *ftw) {
@@ -1178,18 +1179,18 @@ static int remove_binaries(const char *esp_path) {
 
 static int remove_variables(const uint8_t uuid[16], const char *path, bool in_order) {
         uint16_t slot;
-        int err;
+        int r;
 
         if (!is_efi_boot())
                 return 0;
 
-        err = find_slot(uuid, path, &slot);
-        if (err != 1)
+        r = find_slot(uuid, path, &slot);
+        if (r != 1)
                 return 0;
 
-        err = efi_remove_boot_option(slot);
-        if (err < 0)
-                return err;
+        r = efi_remove_boot_option(slot);
+        if (r < 0)
+                return r;
 
         if (in_order)
                 remove_from_order(slot);
