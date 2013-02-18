@@ -55,16 +55,6 @@ static inline const char *strna(const char *s) {
  * - Generate loader.conf from /etc/os-release?
  */
 
-static enum action {
-        ACTION_STATUS,
-        ACTION_INSTALL,
-        ACTION_UPDATE,
-        ACTION_REMOVE
-} arg_action = ACTION_STATUS;
-
-static const char *arg_path = NULL;
-static bool arg_touch_variables = true;
-
 static int help(void) {
         printf("%s [COMMAND] [OPTIONS...]\n"
                "\n"
@@ -97,16 +87,13 @@ static int uuid_parse(const char *s, uint8_t uuid[16]) {
         return 0;
 }
 
-static int verify_esp(uint32_t *part, uint64_t *pstart, uint64_t *psize, uint8_t uuid[16]) {
-        const char *p;
+static int verify_esp(const char *p, uint32_t *part, uint64_t *pstart, uint64_t *psize, uint8_t uuid[16]) {
         struct statfs sfs;
         struct stat st, st2;
         char *t;
         blkid_probe b = NULL;
         int r;
         const char *v;
-
-        p = arg_path ? arg_path : "/boot";
 
         if (statfs(p, &sfs) < 0) {
                 fprintf(stderr, "Failed to check file system type of %s: %m\n", p);
@@ -265,11 +252,7 @@ static int verify_esp(uint32_t *part, uint64_t *pstart, uint64_t *psize, uint8_t
         *psize = strtoul(v, NULL, 10);
 
         blkid_free_probe(b);
-        arg_path = p;
-
-
         return 0;
-
 fail:
         if (b)
                 blkid_free_probe(b);
@@ -323,13 +306,13 @@ finish:
         return r;
 }
 
-static int enumerate_binaries(const char *path, const char *prefix) {
+static int enumerate_binaries(const char *esp_path, const char *path, const char *prefix) {
         struct dirent *de;
         char *p = NULL, *q = NULL;
         DIR *d = NULL;
         int r = 0, c = 0;
 
-        if (asprintf(&p, "%s/%s", arg_path, path) < 0) {
+        if (asprintf(&p, "%s/%s", esp_path, path) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 r = -ENOMEM;
                 goto finish;
@@ -364,7 +347,7 @@ static int enumerate_binaries(const char *path, const char *prefix) {
 
                 free(q);
                 q = NULL;
-                if (asprintf(&q, "%s/%s/%s", arg_path, path, de->d_name) < 0) {
+                if (asprintf(&q, "%s/%s/%s", esp_path, path, de->d_name) < 0) {
                         fprintf(stderr, "Out of memory.\n");
                         r = -ENOMEM;
                         goto finish;
@@ -405,18 +388,18 @@ finish:
         return r;
 }
 
-static int status_binaries(void) {
+static int status_binaries(const char *esp_path) {
         int r;
 
         printf("Boot Loader Binaries found in ESP:\n");
 
-        r = enumerate_binaries("EFI/gummiboot", NULL);
+        r = enumerate_binaries(esp_path, "EFI/gummiboot", NULL);
         if (r == 0)
                 fprintf(stderr, "\tGummiboot not installed in ESP.\n");
         else if (r < 0)
                 return r;
 
-        r = enumerate_binaries("EFI/BOOT", "BOOT");
+        r = enumerate_binaries(esp_path, "EFI/BOOT", "BOOT");
         if (r == 0)
                 fprintf(stderr, "\tNo fallback for removable devices installed in ESP.\n");
         else if (r < 0)
@@ -457,9 +440,6 @@ static int status_variables(void) {
         int n_options, n_order;
         uint16_t *options = NULL, *order = NULL;
         int r, i;
-
-        if (!arg_touch_variables)
-                return 0;
 
         if (!is_efi_boot()) {
                 fprintf(stderr, "Not booted with EFI, not showing EFI variables.\n");
@@ -594,14 +574,12 @@ static int version_check(FILE *f, const char *from, const char *to) {
 finish:
         free(a);
         free(b);
-
         if (g)
                 fclose(g);
-
         return r;
 }
 
-static int copy_file(const char *from, const char *to) {
+static int copy_file(const char *from, const char *to, bool force) {
         FILE *f = NULL, *g = NULL;
         char *p = NULL;
         int r;
@@ -617,9 +595,8 @@ static int copy_file(const char *from, const char *to) {
                 return -errno;
         }
 
-        if (arg_action == ACTION_UPDATE) {
+        if (!force) {
                 /* If this is an update, then let's compare versions first */
-
                 r = version_check(f, from, to);
                 if (r < 0)
                         goto finish;
@@ -634,7 +611,7 @@ static int copy_file(const char *from, const char *to) {
         g = fopen(p, "wxe");
         if (!g) {
                 /* Directory doesn't exist yet? Then let's skip this... */
-                if (arg_action == ACTION_UPDATE && errno == ENOENT) {
+                if (!force && errno == ENOENT) {
                         r = 0;
                         goto finish;
                 }
@@ -707,12 +684,10 @@ finish:
                 fclose(f);
         if (g)
                 fclose(g);
-
         if (p) {
                 unlink(p);
                 free(p);
         }
-
         return r;
 }
 
@@ -746,33 +721,33 @@ static int mkdir_one(const char *prefix, const char *suffix) {
         return 0;
 }
 
-static int create_dirs(void) {
+static int create_dirs(const char *esp_path) {
         int r;
 
-        r = mkdir_one(arg_path, "EFI");
+        r = mkdir_one(esp_path, "EFI");
         if (r < 0)
                 return r;
 
-        r = mkdir_one(arg_path, "EFI/gummiboot");
+        r = mkdir_one(esp_path, "EFI/gummiboot");
         if (r < 0)
                 return r;
 
-        r = mkdir_one(arg_path, "EFI/BOOT");
+        r = mkdir_one(esp_path, "EFI/BOOT");
         if (r < 0)
                 return r;
 
-        r = mkdir_one(arg_path, "loader");
+        r = mkdir_one(esp_path, "loader");
         if (r < 0)
                 return r;
 
-        r = mkdir_one(arg_path, "loader/entries");
+        r = mkdir_one(esp_path, "loader/entries");
         if (r < 0)
                 return r;
 
         return 0;
 }
 
-static int copy_one_file(const char *name) {
+static int copy_one_file(const char *esp_path, const char *name, bool force) {
         char *p = NULL, *q = NULL, *v = NULL;
         int r;
 
@@ -782,26 +757,26 @@ static int copy_one_file(const char *name) {
                 goto finish;
         }
 
-        if (asprintf(&q, "%s/EFI/gummiboot/%s", arg_path, name) < 0) {
+        if (asprintf(&q, "%s/EFI/gummiboot/%s", esp_path, name) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 r = -ENOMEM;
                 goto finish;
         }
 
-        r = copy_file(p, q);
+        r = copy_file(p, q, force);
 
         if (strncmp(name, "gummiboot", 9) == 0) {
                 int k;
 
                 /* Create the fallback names for removable devices */
-                if (asprintf(&v, "%s/EFI/BOOT/%s", arg_path, name + 5) < 0) {
+                if (asprintf(&v, "%s/EFI/BOOT/%s", esp_path, name + 5) < 0) {
                         fprintf(stderr, "Out of memory.\n");
                         r = -ENOMEM;
                         goto finish;
                 }
                 strupper(strrchr(v, '/') + 1);
 
-                k = copy_file(p, v);
+                k = copy_file(p, v, force);
                 if (k < 0 && r == 0) {
                         r = k;
                         goto finish;
@@ -812,22 +787,21 @@ finish:
         free(p);
         free(q);
         free(v);
-
         return r;
 }
 
-static int install_binaries(void) {
+static int install_binaries(const char *esp_path, bool force) {
         struct dirent *de;
         DIR *d;
         int r = 0;
 
-        if (arg_action == ACTION_INSTALL) {
+        if (force) {
                 /* Don't create any of these directories when we are
                  * just updating. When we update we'll drop-in our
                  * files (unless there are newer ones already), but we
                  * won't create the directories for them in the first
                  * place. */
-                r = create_dirs();
+                r = create_dirs(esp_path);
                 if (r < 0)
                         return r;
         }
@@ -849,7 +823,7 @@ static int install_binaries(void) {
                 if (n < 4 || strcmp(de->d_name + n - 4, ".efi") != 0)
                         continue;
 
-                k = copy_one_file(de->d_name);
+                k = copy_one_file(esp_path, de->d_name, force);
                 if (k < 0 && r == 0)
                         r = k;
         }
@@ -909,10 +883,10 @@ static int find_slot(const uint8_t uuid[16], const char *path, uint16_t *id) {
 finish:
         *id = new_id;
         free(options);
-        return existing ? 1 : 0;
+        return existing;
 }
 
-static int insert_into_order(uint16_t slot) {
+static int insert_into_order(uint16_t slot, bool first) {
         uint16_t *order = NULL;
         uint16_t *new_order;
         int n_order;
@@ -930,15 +904,21 @@ static int insert_into_order(uint16_t slot) {
                 if (order[i] == slot)
                         goto finish;
 
-        /* add us to the top of the list */
+        /* extend array */
         new_order = realloc(order, (n_order+1) * sizeof(uint16_t));
         if (!new_order) {
                 err = -ENOMEM;
                 goto finish;
         }
         order = new_order;
-        memmove(&order[1], order, n_order * sizeof(uint16_t));
-        order[0] = slot;
+
+        /* add to the top or end of the list */
+        if (first) {
+                memmove(&order[1], order, n_order * sizeof(uint16_t));
+                order[0] = slot;
+        } else
+                order[n_order] = slot;
+
         efi_set_boot_order(order, n_order+1);
 
 finish:
@@ -972,19 +952,31 @@ static int remove_from_order(uint16_t slot) {
         return err;
 }
 
-static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
+static int install_variables(const char *esp_path,
+                             uint32_t part, uint64_t pstart, uint64_t psize,
                              const uint8_t uuid[16], const char *path,
-                             bool in_order) {
+                             bool force) {
+        char *p = NULL;
         uint16_t *options = NULL;
         uint16_t slot;
         int err;
 
-        if (!arg_touch_variables)
-                return 0;
-
         if (!is_efi_boot()) {
                 fprintf(stderr, "Not booted with EFI, skipping EFI variable checks.\n");
                 return 0;
+        }
+
+        if (asprintf(&p, "%s/%s", esp_path, path) < 0) {
+                fprintf(stderr, "Out of memory.\n");
+                return -ENOMEM;
+        }
+
+        if (access(p, F_OK) < 0) {
+                if (errno == ENOENT)
+                        err = 0;
+                else
+                        err = -errno;
+                goto finish;
         }
 
         err = find_slot(uuid, path, &slot);
@@ -993,21 +985,22 @@ static int install_variables(uint32_t part, uint64_t pstart, uint64_t psize,
                 goto finish;
         }
 
-        err = efi_add_boot_option(slot,
-                                  "Linux Boot Manager",
-                                  part, pstart, psize,
-                                  uuid, path);
-        if (err < 0)
-                fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(err));
-        else {
+        if (force || err == false) {
+                err = efi_add_boot_option(slot,
+                                          "Linux Boot Manager",
+                                          part, pstart, psize,
+                                          uuid, path);
+                if (err < 0) {
+                        fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(err));
+                        goto finish;
+                }
                 fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
-                if (in_order)
-                        insert_into_order(slot);
         }
+        insert_into_order(slot, force);
 
 finish:
         free(options);
-        return 0;
+        return err;
 }
 
 static int delete_nftw(const char *path, const struct stat *sb, int typeflag, struct FTW *ftw) {
@@ -1031,13 +1024,13 @@ static int rm_rf(const char *p) {
         return 0;
 }
 
-static int remove_boot_efi(void) {
+static int remove_boot_efi(const char *esp_path) {
         struct dirent *de;
         char *p = NULL, *q = NULL;
         DIR *d = NULL;
         int r = 0, c = 0;
 
-        if (asprintf(&p, "%s/EFI/BOOT", arg_path) < 0) {
+        if (asprintf(&p, "%s/EFI/BOOT", esp_path) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 return -ENOMEM;
         }
@@ -1139,11 +1132,11 @@ static int rmdir_one(const char *prefix, const char *suffix) {
 }
 
 
-static int remove_binaries(void) {
+static int remove_binaries(const char *esp_path) {
         char *p;
         int r, q;
 
-        if (asprintf(&p, "%s/EFI/gummiboot", arg_path) < 0) {
+        if (asprintf(&p, "%s/EFI/gummiboot", esp_path) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 return -ENOMEM;
         }
@@ -1151,27 +1144,27 @@ static int remove_binaries(void) {
         r = rm_rf(p);
         free(p);
 
-        q = remove_boot_efi();
+        q = remove_boot_efi(esp_path);
         if (q < 0 && r == 0)
                 r = q;
 
-        q = rmdir_one(arg_path, "loader/entries");
+        q = rmdir_one(esp_path, "loader/entries");
         if (q < 0 && r == 0)
                 r = q;
 
-        q = rmdir_one(arg_path, "loader");
+        q = rmdir_one(esp_path, "loader");
         if (q < 0 && r == 0)
                 r = q;
 
-        q = rmdir_one(arg_path, "EFI/BOOT");
+        q = rmdir_one(esp_path, "EFI/BOOT");
         if (q < 0 && r == 0)
                 r = q;
 
-        q = rmdir_one(arg_path, "EFI/gummiboot");
+        q = rmdir_one(esp_path, "EFI/gummiboot");
         if (q < 0 && r == 0)
                 r = q;
 
-        q = rmdir_one(arg_path, "EFI");
+        q = rmdir_one(esp_path, "EFI");
         if (q < 0 && r == 0)
                 r = q;
 
@@ -1181,9 +1174,6 @@ static int remove_binaries(void) {
 static int remove_variables(const uint8_t uuid[16], const char *path, bool in_order) {
         uint16_t slot;
         int err;
-
-        if (!arg_touch_variables)
-                return 0;
 
         if (!is_efi_boot())
                 return 0;
@@ -1201,6 +1191,9 @@ static int remove_variables(const uint8_t uuid[16], const char *path, bool in_or
 
         return 0;
 }
+
+static const char *arg_path = NULL;
+static bool arg_touch_variables = true;
 
 static int parse_argv(int argc, char *argv[]) {
         enum {
@@ -1248,6 +1241,13 @@ static int parse_argv(int argc, char *argv[]) {
 }
 
 int main(int argc, char*argv[]) {
+        enum action {
+                ACTION_STATUS,
+                ACTION_INSTALL,
+                ACTION_UPDATE,
+                ACTION_REMOVE
+        } arg_action = ACTION_STATUS;
+
         static const struct {
                 const char* verb;
                 enum action action;
@@ -1257,6 +1257,7 @@ int main(int argc, char*argv[]) {
                 { "update",  ACTION_UPDATE },
                 { "remove",  ACTION_REMOVE },
         };
+
         uint8_t uuid[16] = "";
         uint32_t part = 0;
         uint64_t pstart = 0;
@@ -1282,13 +1283,16 @@ int main(int argc, char*argv[]) {
                 }
         }
 
+        if (!arg_path)
+                arg_path = "/boot";
+
         if (geteuid() != 0) {
                 fprintf(stderr, "Need to be root.\n");
                 r = -EPERM;
                 goto finish;
         }
 
-        r = verify_esp(&part, &pstart, &psize, uuid);
+        r = verify_esp(arg_path, &part, &pstart, &psize, uuid);
         if (r == -ENODEV && !arg_path)
                 fprintf(stderr, "You might want to use --path= to indicate the path to your ESP, in case it is not mounted to /boot.\n");
         if (r < 0)
@@ -1296,32 +1300,37 @@ int main(int argc, char*argv[]) {
 
         switch (arg_action) {
         case ACTION_STATUS:
-                r = status_binaries();
+                r = status_binaries(arg_path);
                 if (r < 0)
                         goto finish;
 
-                r = status_variables();
+                if (arg_touch_variables)
+                        r = status_variables();
                 break;
 
         case ACTION_INSTALL:
         case ACTION_UPDATE:
                 umask(0002);
 
-                r = install_binaries();
+                r = install_binaries(arg_path, arg_action == ACTION_INSTALL);
                 if (r < 0)
                         goto finish;
 
-                r = install_variables(part, pstart, psize, uuid,
-                                      "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi",
-                                      true);
+                if (arg_touch_variables)
+                        r = install_variables(arg_path,
+                                              part, pstart, psize, uuid,
+                                              "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi",
+                                              arg_action == ACTION_INSTALL);
                 break;
 
         case ACTION_REMOVE:
-                r = remove_binaries();
+                r = remove_binaries(arg_path);
 
-                q = remove_variables(uuid, "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi", true);
-                if (q < 0 && r == 0)
-                        r = q;
+                if (arg_touch_variables) {
+                        q = remove_variables(uuid, "/EFI/gummiboot/gummiboot" MACHINE_TYPE_NAME ".efi", true);
+                        if (q < 0 && r == 0)
+                                r = q;
+                }
                 break;
         }
 
