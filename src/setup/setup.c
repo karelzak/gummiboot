@@ -42,6 +42,14 @@
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
 #define streq(a,b) (strcmp((a),(b)) == 0)
 
+static inline bool isempty(const char *p) {
+        return !p || !p[0];
+}
+
+static inline const char *strna(const char *s) {
+        return isempty(s) ? "n/a" : s;
+}
+
 /* TODO:
  *
  * - Generate loader.conf from /etc/os-release?
@@ -432,14 +440,12 @@ static int print_efi_option(uint16_t id, bool in_order) {
         }
 
         if (path)
-                printf("\t%s (%s on /dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x)", title, path,
+                printf("\t%s (%s on /dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x)",
+                       strna(title), path,
                        partition[0], partition[1], partition[2], partition[3], partition[4], partition[5], partition[6], partition[7],
                        partition[8], partition[9], partition[10], partition[11], partition[12], partition[13], partition[14], partition[15]);
         else
-                printf("\t%s", title);
-
-        if (in_order)
-                printf(" [ENABLED]");
+                printf("\t%s", strna(title));
 
         printf("\n");
 finish:
