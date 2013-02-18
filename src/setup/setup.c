@@ -412,13 +412,13 @@ static int status_binaries(void) {
 
         r = enumerate_binaries("EFI/gummiboot", NULL);
         if (r == 0)
-                fprintf(stderr, "\tGummiboot not installed to ESP.\n");
+                fprintf(stderr, "\tGummiboot not installed in ESP.\n");
         else if (r < 0)
                 return r;
 
         r = enumerate_binaries("EFI/BOOT", "BOOT");
         if (r == 0)
-                fprintf(stderr, "\tNo fallback for removable devices installed to ESP.\n");
+                fprintf(stderr, "\tNo fallback for removable devices installed in ESP.\n");
         else if (r < 0)
                 return r;
 
@@ -466,21 +466,22 @@ static int status_variables(void) {
                 return 0;
         }
 
-        printf("\nBoot Loader Entries found in EFI Variables:\n");
+        printf("\nBoot Entries found in EFI variables:\n");
 
         n_options = efi_get_boot_options(&options);
         if (n_options < 0) {
-                fprintf(stderr, "Failed to read EFI boot options.\n");
+                fprintf(stderr, "\tFailed to read EFI boot entries.\n");
                 r = n_options;
                 goto finish;
         }
 
         n_order = efi_get_boot_order(&order);
         if (n_order == -ENOENT) {
-                options = NULL;
-                n_options = 0;
+                fprintf(stderr, "\tNo boot entries registered in EFI variables.\n");
+                r = 0;
+                goto finish;
         } else if (n_order < 0) {
-                fprintf(stderr, "Failed to read EFI boot order.\n");
+                fprintf(stderr, "\tFailed to read EFI boot order.\n");
                 r = n_order;
                 goto finish;
         }
@@ -509,11 +510,7 @@ static int status_variables(void) {
                         goto finish;
         }
 
-        if (n_order == 0 && n_options == 0)
-                fprintf(stderr, "\tNo entries registered in boot loader.\n");
-
         r = 0;
-
 finish:
         free(options);
         free(order);
