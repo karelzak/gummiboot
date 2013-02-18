@@ -967,7 +967,7 @@ static int install_variables(const char *esp_path,
                 return 0;
         }
 
-        if (asprintf(&p, "%s/%s", esp_path, path) < 0) {
+        if (asprintf(&p, "%s%s", esp_path, path) < 0) {
                 fprintf(stderr, "Out of memory.\n");
                 return -ENOMEM;
         }
@@ -1003,6 +1003,7 @@ static int install_variables(const char *esp_path,
         insert_into_order(slot, force);
 
 finish:
+        free(p);
         free(options);
         return err;
 }
@@ -1196,6 +1197,49 @@ static int remove_variables(const uint8_t uuid[16], const char *path, bool in_or
         return 0;
 }
 
+static int install_loader_config(const char *esp_path) {
+        char *p = NULL;
+        char line[LINE_MAX];
+        char *vendor = NULL;
+        FILE *f;
+
+        f = fopen("/etc/os-release", "re");
+        if (!f)
+                return -errno;
+
+        while (fgets(line, sizeof(line), f) != NULL) {
+                char *s;
+
+                if (strncmp(line, "ID=", 3) != 0)
+                        continue;
+                vendor = line + 3;
+                s = strchr(vendor, '\n');
+                if (s)
+                        s[0] = '\0';
+                break;
+        }
+
+        fclose(f);
+
+        if (!vendor)
+                return -ESRCH;
+
+        if (asprintf(&p, "%s/%s", esp_path, "loader/loader.conf") < 0) {
+                fprintf(stderr, "Out of memory.\n");
+                return -ENOMEM;
+        }
+
+        f = fopen(p, "wxe");
+        if (f) {
+                fprintf(f, "#timeout 3\n");
+                fprintf(f, "default %s-*\n", vendor);
+                fclose(f);
+        }
+
+        free(p);
+        return 0;
+}
+
 static const char *arg_path = NULL;
 static bool arg_touch_variables = true;
 
@@ -1319,6 +1363,9 @@ int main(int argc, char*argv[]) {
                 r = install_binaries(arg_path, arg_action == ACTION_INSTALL);
                 if (r < 0)
                         goto finish;
+
+                if (arg_action == ACTION_INSTALL)
+                        install_loader_config(arg_path);
 
                 if (arg_touch_variables)
                         r = install_variables(arg_path,
