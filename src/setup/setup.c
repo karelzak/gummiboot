@@ -439,15 +439,14 @@ static int print_efi_option(uint16_t id, bool in_order) {
                 goto finish;
         }
 
-        if (path)
-                printf("\t%s (%s on /dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x)",
-                       strna(title), path,
-                       partition[0], partition[1], partition[2], partition[3], partition[4], partition[5], partition[6], partition[7],
-                       partition[8], partition[9], partition[10], partition[11], partition[12], partition[13], partition[14], partition[15]);
-        else
-                printf("\t%s", strna(title));
+        printf("\t%s%s\n", strna(title), in_order ? " [ENABLED]" : "");
+        if (path) {
+                 printf("\t\t%s\n", path);
+                 printf("\t\t/dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
+                        partition[0], partition[1], partition[2], partition[3], partition[4], partition[5], partition[6], partition[7],
+                        partition[8], partition[9], partition[10], partition[11], partition[12], partition[13], partition[14], partition[15]);
+        }
 
-        printf("\n");
 finish:
         free(title);
         free(path);
