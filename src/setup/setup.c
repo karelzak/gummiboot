@@ -404,7 +404,7 @@ static int status_binaries(const char *esp_path) {
         return 0;
 }
 
-static int print_efi_option(uint16_t id, bool in_order) {
+static int print_efi_option(uint16_t id) {
         char *title = NULL;
         char *path = NULL;
         uint8_t partition[16];
@@ -416,7 +416,7 @@ static int print_efi_option(uint16_t id, bool in_order) {
                 goto finish;
         }
 
-        printf("\t%s%s\n", strna(title), in_order ? " [ENABLED]" : "");
+        printf("\t%s\n", strna(title));
         if (path) {
                  printf("\t\t%s\n", path);
                  printf("\t\t/dev/disk/by-partuuid/%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x\n",
@@ -464,10 +464,15 @@ static int status_variables(void) {
         }
 
         for (i = 0; i < n_order; i++) {
-                r = print_efi_option(order[i], true);
+                r = print_efi_option(order[i]);
                 if (r < 0)
                         goto finish;
         }
+
+        if (n_order == n_options)
+                goto finish;
+
+        printf("\nInactive boot entries found in EFI variables:\n");
 
         for (i = 0; i < n_options; i++) {
                 int j;
@@ -482,7 +487,7 @@ static int status_variables(void) {
                 if (found)
                         continue;
 
-                r = print_efi_option(options[i], false);
+                r = print_efi_option(options[i]);
                 if (r < 0)
                         goto finish;
         }
