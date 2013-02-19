@@ -387,7 +387,7 @@ finish:
 static int status_binaries(const char *esp_path) {
         int r;
 
-        printf("Boot Loader Binaries found in ESP:\n");
+        printf("Boot loader binaries found in ESP:\n");
 
         r = enumerate_binaries(esp_path, "EFI/gummiboot", NULL);
         if (r == 0)
@@ -397,7 +397,7 @@ static int status_binaries(const char *esp_path) {
 
         r = enumerate_binaries(esp_path, "EFI/BOOT", "BOOT");
         if (r == 0)
-                fprintf(stderr, "\tNo fallback for removable devices installed in ESP.\n");
+                fprintf(stderr, "\tNo fallback boot loader installed in ESP.\n");
         else if (r < 0)
                 return r;
 
@@ -440,7 +440,7 @@ static int status_variables(void) {
                 return 0;
         }
 
-        printf("\nBoot Entries found in EFI variables:\n");
+        printf("\nBoot entries found in EFI variables:\n");
 
         n_options = efi_get_boot_options(&options);
         if (n_options < 0) {
@@ -765,7 +765,7 @@ static int copy_one_file(const char *esp_path, const char *name, bool force) {
         if (strncmp(name, "gummiboot", 9) == 0) {
                 int k;
 
-                /* Create the fallback names for removable devices */
+                /* Create the fallback boot loader name (specified for removable devices) */
                 if (asprintf(&v, "%s/EFI/BOOT/%s", esp_path, name + 5) < 0) {
                         fprintf(stderr, "Out of memory.\n");
                         r = -ENOMEM;
@@ -1010,7 +1010,7 @@ static int install_variables(const char *esp_path,
                         fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(-r));
                         goto finish;
                 }
-                fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
+                fprintf(stderr, "Created EFI boot entry \"Linux Boot Manager\".\n");
         }
         insert_into_order(slot, first);
 
