@@ -968,7 +968,7 @@ static int remove_from_order(uint16_t slot) {
 static int install_variables(const char *esp_path,
                              uint32_t part, uint64_t pstart, uint64_t psize,
                              const uint8_t uuid[16], const char *path,
-                             bool force) {
+                             bool first) {
         char *p = NULL;
         uint16_t *options = NULL;
         uint16_t slot;
@@ -1001,18 +1001,18 @@ static int install_variables(const char *esp_path,
                 goto finish;
         }
 
-        if (force || r == false) {
+        if (first || r == false) {
                 r = efi_add_boot_option(slot,
-                                          "Linux Boot Manager",
-                                          part, pstart, psize,
-                                          uuid, path);
+                                        "Linux Boot Manager",
+                                        part, pstart, psize,
+                                        uuid, path);
                 if (r < 0) {
                         fprintf(stderr, "Failed to create EFI Boot variable entry: %s\n", strerror(-r));
                         goto finish;
                 }
                 fprintf(stderr, "Created EFI Boot entry \"Linux Boot Manager\".\n");
         }
-        insert_into_order(slot, force);
+        insert_into_order(slot, first);
 
 finish:
         free(p);
