@@ -85,14 +85,27 @@ gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c Makefile
 	  -o $@
 
 # ------------------------------------------------------------------------------
+man: gummiboot.1
+
+gummiboot.1: src/setup/gummiboot.xml
+	$(E) "  XSLT     " $@
+	$(Q) xsltproc -o @ --nonet \
+	  --stringparam man.output.quietly 1 \
+	  --stringparam man.th.extra1.suppress 1 \
+	  --stringparam man.authors.section.enabled 0 \
+	  --stringparam man.copyright.section.enabled 0 \
+	  http://docbook.sourceforge.net/release/xsl/current/manpages/docbook.xsl $<
+
+# ------------------------------------------------------------------------------
 clean:
 	rm -f src/efi/gummiboot.o src/efi/gummiboot.so gummiboot gummiboot$(MACHINE_TYPE_NAME).efi
 
-install:
+install: all
 	mkdir -p $(DESTDIR)/usr/bin/
 	cp gummiboot $(DESTDIR)/usr/bin
 	mkdir -p $(DESTDIR)/usr/lib/gummiboot/
 	cp gummiboot$(MACHINE_TYPE_NAME).efi $(DESTDIR)/usr/lib/gummiboot/
+	[ -e gummiboot.1 ] && mkdir -p $(DESTDIR)/usr/share/man/man1/ && cp gummiboot.1 $(DESTDIR)/usr/share/man/man1/ || :
 
 tar:
 	git archive --format=tar --prefix=gummiboot-$(VERSION)/ $(VERSION) | xz > gummiboot-$(VERSION).tar.xz
