@@ -892,14 +892,30 @@ static int insert_into_order(uint16_t slot, bool first) {
 
         n_order = efi_get_boot_order(&order);
         if (n_order <= 0) {
+                /* no entry, add us */
                 err = efi_set_boot_order(&slot, 1);
                 goto finish;
         }
 
+        /* are we the first and only one? */
+        if (n_order == 1 && order[0] == slot)
+                goto finish;
+
         /* are we already in the boot order? */
-        for (i = 0; i < n_order; i++)
-                if (order[i] == slot)
+        for (i = 0; i < n_order; i++) {
+                if (order[i] != slot)
+                        continue;
+
+                /* we do not require to be the first one, all is fine */
+                if (!first)
                         goto finish;
+
+                /* move us to the first slot */
+                memmove(&order[1], order, i * sizeof(uint16_t));
+                order[0] = slot;
+                efi_set_boot_order(order, n_order);
+                goto finish;
+        }
 
         /* extend array */
         new_order = realloc(order, (n_order+1) * sizeof(uint16_t));
@@ -909,7 +925,7 @@ static int insert_into_order(uint16_t slot, bool first) {
         }
         order = new_order;
 
-        /* add to the top or end of the list */
+        /* add us to the top or end of the list */
         if (first) {
                 memmove(&order[1], order, n_order * sizeof(uint16_t));
                 order[0] = slot;
