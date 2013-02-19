@@ -63,26 +63,30 @@
                 <title>Description</title>
 
                 <para><command>gummibot</command> checks, updates,
-                installs or removes the boot manager from the current
+                installs or removes the boot loader from the current
                 system.</para>
 
-                <para><command>gummiboot status</command> checks and
-                prints the currently installed version of the boot
-                manager.</para>
+                <para><command>gummiboot status</command> checks and prints the
+                currently installed versions of the boot loader binaries and the
+                all current EFI boot variables.</para>
 
                 <para><command>gummiboot update</command> updates all installed
                 versions of gummiboot, if the current version is newer than the
-                version installed in the EFI system partition, and create a
-                gummiboot entry in the EFI boot variables if there is no entry
-                already.</para>
+                version installed in the EFI system partition. This also includes
+                the EFI default/fallback loader at /EFI/BOOT/BOOT*.EFI. An
+                gummiboot entry in the EFI boot variables is created, if there
+                is no current entry. A created entry will be added to the end of
+                the boot order list.</para>
 
-                <para><command>gummiboot install</command>
-                installs gummiboot into the EFI system partition, and create
-                an active entry in the EFI boot varaibles.</para>
+                <para><command>gummiboot install</command> installs gummiboot into
+                the EFI system partition. A copy of gummiboot will be stored as
+                the EFI default/fallback loader at /EFI/BOOT/BOOT*.EFI. An gummiboot
+                entry in the EFI boot variables is created and added to the top
+                of the boot order list.</para>
 
                 <para><command>gummiboot remove</command> removes all installed
-                versions of gummiboot from the EFI system partition, and remove
-                all gummiboot entries from the EFI boot variables.</para>
+                versions of gummiboot from the EFI system partition, and removes
+                gummiboot from the EFI boot variables.</para>
 
                 <para>If no command is passed <command>status</command> is
                 implied.</para>
@@ -110,7 +114,7 @@
                         <varlistentry>
                                 <term><option>--no-variables</option></term>
                                 <listitem><para>Do not touch the EFI boot
-                                variables in the firmware.</para></listitem>
+                                variables.</para></listitem>
                         </varlistentry>
                 </variablelist>
         </refsect1>

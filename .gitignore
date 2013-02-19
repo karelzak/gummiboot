@@ -1,6 +1,7 @@
 *.o
 *.so
 /gummiboot
+/gummiboot.1
 /gummiboot.so
 /gummibootia32.efi
 /gummibootx64.efi

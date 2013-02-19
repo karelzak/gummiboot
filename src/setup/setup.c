@@ -397,7 +397,7 @@ static int status_binaries(const char *esp_path) {
 
         r = enumerate_binaries(esp_path, "EFI/BOOT", "BOOT");
         if (r == 0)
-                fprintf(stderr, "\tNo fallback boot loader installed in ESP.\n");
+                fprintf(stderr, "\tNo default/fallback boot loader installed in ESP.\n");
         else if (r < 0)
                 return r;
 
@@ -765,7 +765,7 @@ static int copy_one_file(const char *esp_path, const char *name, bool force) {
         if (strncmp(name, "gummiboot", 9) == 0) {
                 int k;
 
-                /* Create the fallback boot loader name (specified for removable devices) */
+                /* Create the EFI default boot loader name (specified for removable devices) */
                 if (asprintf(&v, "%s/EFI/BOOT/%s", esp_path, name + 5) < 0) {
                         fprintf(stderr, "Out of memory.\n");
                         r = -ENOMEM;
