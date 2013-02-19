@@ -51,11 +51,6 @@ static inline const char *strna(const char *s) {
         return isempty(s) ? "n/a" : s;
 }
 
-/* TODO:
- *
- * - Generate loader.conf from /etc/os-release?
- */
-
 static int help(void) {
         printf("%s [COMMAND] [OPTIONS...]\n"
                "\n"
