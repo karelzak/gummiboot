@@ -14,7 +14,7 @@
 # Lesser General Public License for more details.
 #
 # Copyright (C) 2012 Harald Hoyer <harald@redhat.com>
-# Copyright (C) 2012 Kay Sievers <kay.sievers@vrfy.org>
+# Copyright (C) 2012 Kay Sievers <kay@vrfy.org>
 
 if (( $# != 2 )); then
         echo "Usage: $0 <KERNEL_VERSION> <KERNEL_IMAGE>" >&2
@@ -55,6 +55,11 @@ if [[ -f /etc/kernel/cmdline ]]; then
         done < /etc/kernel/cmdline
 fi
 if ! [[ $BOOT_OPTIONS ]]; then
+        while read line; do
+                BOOT_OPTIONS+="$line "
+        done < /proc/cmdline
+fi
+if ! [[ $BOOT_OPTIONS ]]; then
         echo "Can't determine the kernel command line parameters." >&2
         echo "Please specify the kernel command line in /etc/kernel/cmdline!" >&2
         exit 1
@@ -87,12 +92,6 @@ cp --preserve "$KERNEL_IMAGE" "${EFI_DIR}/${ID}/${MACHINE_ID}/"
         echo "linux      /$ID/$MACHINE_ID/${KERNEL_IMAGE##*/}"
         [[ $INITRD_IMAGE ]] && echo "initrd     /${ID}/${MACHINE_ID}/${INITRD_IMAGE##*/}"
 } > "${EFI_DIR}/loader/entries/${ID}-${KERNEL_VERSION}-${MACHINE_ID}.conf"
-
-if ! [[ -f ${EFI_DIR}/loader/loader.conf ]]; then
-        {
-                echo "default $ID-*"
-        } > "${EFI_DIR}/loader/loader.conf"
-fi
 
 # now cleanup the old entries and files, for which no /lib/modules/$KERNEL_VERSION exists
 (
