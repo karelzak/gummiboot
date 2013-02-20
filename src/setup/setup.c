@@ -51,23 +51,6 @@ static inline const char *strna(const char *s) {
         return isempty(s) ? "n/a" : s;
 }
 
-static int help(void) {
-        printf("%s [COMMAND] [OPTIONS...]\n"
-               "\n"
-               "Install, update or remove the Gummiboot EFI boot loader.\n\n"
-               "  -h --help          Show this help\n"
-               "     --path=PATH     Path to the EFI System Partition (ESP)\n"
-               "     --no-variables  Don't touch EFI variables\n"
-               "\n"
-               "Comands:\n"
-               "     install         Install Gummiboot to the ESP and EFI variables\n"
-               "     update          Update Gummiboot in the ESP and EFI variables\n"
-               "     remove          Remove Gummiboot from the ESP and EFI variables\n",
-               program_invocation_short_name);
-
-        return 0;
-}
-
 static int uuid_parse(const char *s, uint8_t uuid[16]) {
         int u[16];
         int i;
@@ -1254,6 +1237,24 @@ static int install_loader_config(const char *esp_path) {
         }
 
         free(p);
+        return 0;
+}
+
+static int help(void) {
+        printf("%s [COMMAND] [OPTIONS...]\n"
+               "\n"
+               "Install, update or remove the Gummiboot EFI boot loader.\n\n"
+               "  -h --help          Show this help\n"
+               "     --path=PATH     Path to the EFI System Partition (ESP)\n"
+               "     --no-variables  Don't touch EFI variables\n"
+               "\n"
+               "Comands:\n"
+               "     status          Show status of installed Gummiboot and EFI variables\n"
+               "     install         Install Gummiboot to the ESP and EFI variables\n"
+               "     update          Update Gummiboot in the ESP and EFI variables\n"
+               "     remove          Remove Gummiboot from the ESP and EFI variables\n",
+               program_invocation_short_name);
+
         return 0;
 }
 
