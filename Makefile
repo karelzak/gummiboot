@@ -66,6 +66,7 @@ src/efi/gummiboot.so: src/efi/gummiboot.o
 	$(E) "  LD       " $@
 	$(Q) $(LD) $(LDFLAGS) src/efi/gummiboot.o -o $@ -lefi -lgnuefi \
 	  $(shell $(CC) -print-libgcc-file-name)
+	$(Q) nm -D -u $@ | grep ' U ' && exit 1 || :
 
 gummiboot$(MACHINE_TYPE_NAME).efi: src/efi/gummiboot.so
 	$(E) "  OBJCOPY  " $@
