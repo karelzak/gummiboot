@@ -30,6 +30,7 @@
 #define EFI_VARIABLE_RUNTIME_ACCESS     0x0000000000000004
 
 bool is_efi_boot(void);
+int is_efi_secure_boot(void);
 int efi_get_variable(const uint8_t vendor[16], const char *name, void **value, size_t *size);
 int efi_set_variable( const uint8_t vendor[16], const char *name, const void *value, size_t size);
 int efi_get_variable_string(const uint8_t vendor[16], const char *name, char **p);

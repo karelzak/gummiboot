@@ -963,7 +963,7 @@ static int install_variables(const char *esp_path,
         int r;
 
         if (!is_efi_boot()) {
-                fprintf(stderr, "Not booted with EFI, skipping EFI variable checks.\n");
+                fprintf(stderr, "Not booted with EFI, skipping EFI variable setup.\n");
                 return 0;
         }
 
@@ -1000,7 +1000,10 @@ static int install_variables(const char *esp_path,
                 }
                 fprintf(stderr, "Created EFI boot entry \"Linux Boot Manager\".\n");
         }
-        insert_into_order(slot, first);
+        if (is_efi_secure_boot() <= 0)
+                insert_into_order(slot, first);
+        else
+                fprintf(stderr, "EFI Secure Boot is active, skipping EFI boot order registration.\n");
 
 finish:
         free(p);

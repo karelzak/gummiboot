@@ -40,6 +40,28 @@ bool is_efi_boot(void) {
         return access("/sys/firmware/efi", F_OK) >= 0;
 }
 
+int is_efi_secure_boot(void) {
+        int r;
+        void *v;
+        size_t s;
+        uint8_t b;
+
+        r = efi_get_variable(EFI_VENDOR_GLOBAL, "SecureBoot", &v, &s);
+        if (r < 0)
+                return r;
+        b = *(uint8_t *)s;
+
+        if (s != 1) {
+                r = -EINVAL;
+                goto finish;
+        }
+
+        r = b > 0;
+finish:
+        free(v);
+        return r;
+}
+
 int efi_get_variable(
                 const uint8_t vendor[16],
                 const char *name,
