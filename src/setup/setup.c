@@ -1202,24 +1202,22 @@ static int remove_variables(const uint8_t uuid[16], const char *path, bool in_or
 
 static int install_loader_config(const char *esp_path) {
         char *p = NULL;
-        char line[LINE_MAX];
+        char line[64];
         char *vendor = NULL;
         FILE *f;
 
-        f = fopen("/etc/os-release", "re");
+        f = fopen("/etc/machine-id", "re");
         if (!f)
                 return -errno;
 
-        while (fgets(line, sizeof(line), f) != NULL) {
+        if (fgets(line, sizeof(line), f) != NULL) {
                 char *s;
 
-                if (strncmp(line, "ID=", 3) != 0)
-                        continue;
-                vendor = line + 3;
-                s = strchr(vendor, '\n');
+                s = strchr(line, '\n');
                 if (s)
                         s[0] = '\0';
-                break;
+                if (strlen(line) == 32)
+                        vendor = line;
         }
 
         fclose(f);
