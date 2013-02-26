@@ -20,3 +20,7 @@ entry is booted right away.
 
 Further documentation is available in the gummiboot wiki at:
   http://freedesktop.org/wiki/Software/gummiboot
+
+Links:
+  http://www.freedesktop.org/wiki/Specifications/BootLoaderSpec
+  http://www.freedesktop.org/software/systemd/man/kernel-install.html
