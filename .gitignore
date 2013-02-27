@@ -5,6 +5,8 @@
 *.log
 .deps
 .libs
+*.1
+.dirstamp
 /gummiboot
 /gummiboot.1
 /gummiboot.so
