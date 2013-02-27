@@ -31,3 +31,6 @@ compile
 depcomp
 install-sh
 missing
+
+# wanted files
+!m4/arch.m4

@@ -42,6 +42,23 @@ AC_PROG_GCC_TRADITIONAL
 AC_PROG_MKDIR_P
 AC_PATH_PROG([XSLTPROC], [xsltproc])
 
+dnl Define ARCH_<NAME> conditionals
+SET_ARCH(I686, i686*)
+SET_ARCH(X86_64, x86_64*)
+SET_ARCH(IA64, ia64*)
+
+ARCH=`echo $host | sed "s/\(-\).*$//"`
+
+AM_COND_IF(ARCH_I686, [
+	ARCH=ia32
+	MACHINE_TYPE_NAME=ia32])
+
+AM_COND_IF(ARCH_X86_64, [
+	MACHINE_TYPE_NAME=x64])
+
+AC_SUBST([ARCH])
+AC_SUBST([MACHINE_TYPE_NAME])
+
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(blkid, AS_HELP_STRING([--disable-blkid], [disable blkid support]))
 if test "x$enable_blkid" != "xno"; then
@@ -62,6 +79,9 @@ AC_CONFIG_FILES([
 AC_OUTPUT
 AC_MSG_RESULT([
         $PACKAGE_NAME $VERSION
+
+        arch:                    $ARCH
+        machine type:            $MACHINE_TYPE_NAME
 
         prefix:                  ${prefix}
         libdir:                  ${libdir}
