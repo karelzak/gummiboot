@@ -25,6 +25,7 @@ libdir() {
 
 args="\
 --sysconfdir=/etc \
+--libexecdir=/usr/lib \
 --libdir=$(libdir /usr/lib)"
 
 if [ "x$1" = "xc" ]; then
