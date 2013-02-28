@@ -35,6 +35,11 @@ AC_CANONICAL_HOST
 AC_SYS_LARGEFILE
 
 AC_PROG_CC
+
+dnl Don't try to use things like -std=c99 for efi compilation
+GNUEFI_CC=$CC
+AC_SUBST([GNUEFI_CC])
+
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
 AC_PROG_GCC_TRADITIONAL
@@ -58,6 +63,24 @@ AM_COND_IF(ARCH_X86_64, [
 
 AC_SUBST([ARCH])
 AC_SUBST([MACHINE_TYPE_NAME])
+
+# ------------------------------------------------------------------------------
+dnl Compile EFI stuff is so tricky that it's probably better to check for the
+dnl include files that try to use AC_CHECK_HEADERS to compile any conftest.c
+AC_CHECK_FILES([/usr/include/efi/efi.h
+	        /usr/include/efi/${ARCH}/efibind.h], [],
+	[AC_MSG_ERROR([*** GNU Efi headers not found])])
+
+efiroot=$(echo $(cd /usr/lib/$(gcc -print-multi-os-directory); pwd))
+GNUEFI_LIBS="-L $efiroot"
+
+dnl extra objects and linker scripts
+GNUEFI_LDS_DIR="$efiroot"
+if test -d "${efiroot}/gnuefi"; then
+	GNUEFI_LDS_DIR="${efiroot}/gnuefi"
+fi
+AC_SUBST([GNUEFI_LIBS])
+AC_SUBST([GNUEFI_LDS_DIR])
 
 # ------------------------------------------------------------------------------
 AC_ARG_ENABLE(blkid, AS_HELP_STRING([--disable-blkid], [disable blkid support]))
@@ -86,5 +109,7 @@ AC_MSG_RESULT([
         prefix:                  ${prefix}
         libdir:                  ${libdir}
 
-        blkid:                   ${have_blkid}
+	blkid:                   ${have_blkid}
+        efi libs:                ${GNUEFI_LIBS}
+        efi lds:                 ${GNUEFI_LDS_DIR}
 ])
