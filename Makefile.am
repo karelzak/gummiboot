@@ -122,3 +122,15 @@ $(efi_loadername): $(efi_solib)
 	$(AM_V_GEN) objcopy -j .text -j .sdata -j .data -j .dynamic \
 	  -j .dynsym -j .rel -j .rela -j .reloc -j .eh_frame \
 	  --target=efi-app-$(ARCH) $< $@
+
+#
+# tests
+#
+CLEANFILES += test-disk
+EXTRA_DIST += test/test-create-disk.sh
+
+test-disk: gummiboot$(MACHINE_TYPE_NAME).efi test/test-create-disk.sh
+	$(AM_V_GEN)test/test-create-disk.sh
+
+test: test-disk
+	$(QEMU_KVM) -m 256 -L $(BIOS) -snapshot test-disk

@@ -46,6 +46,7 @@ AC_PROG_GCC_TRADITIONAL
 
 AC_PROG_MKDIR_P
 AC_PATH_PROG([XSLTPROC], [xsltproc])
+AC_PATH_PROG([QEMU_KVM], [qemu-kvm])
 
 dnl Define ARCH_<NAME> conditionals
 SET_ARCH(I686, i686*)
@@ -63,6 +64,11 @@ AM_COND_IF(ARCH_X86_64, [
 
 AC_SUBST([ARCH])
 AC_SUBST([MACHINE_TYPE_NAME])
+
+# test bios
+AC_CHECK_FILE([/usr/lib/qemu-bios],        [BIOS=/usr/lib/qemu-bios])
+AC_CHECK_FILE([/usr/share/qemu-ovmf/bios], [BIOS=/usr/share/qemu-ovmf/bios])
+AC_SUBST([BIOS])
 
 # ------------------------------------------------------------------------------
 dnl Compile EFI stuff is so tricky that it's probably better to check for the
@@ -113,4 +119,6 @@ AC_MSG_RESULT([
 	blkid:                   ${have_blkid}
         efi libs:                ${GNUEFI_LIBS}
         efi lds:                 ${GNUEFI_LDS_DIR}
+
+        test bios:               ${BIOS}
 ])
