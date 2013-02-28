@@ -40,6 +40,9 @@
 
 #include "efivars.h"
 
+#define _stringify(s) #s
+#define stringify(s) _stringify(s)
+
 #define ELEMENTSOF(x) (sizeof(x)/sizeof((x)[0]))
 #define streq(a,b) (strcmp((a),(b)) == 0)
 
@@ -1246,6 +1249,7 @@ static int help(void) {
                "\n"
                "Install, update or remove the Gummiboot EFI boot loader.\n\n"
                "  -h --help          Show this help\n"
+               "     --version       Print version\n"
                "     --path=PATH     Path to the EFI System Partition (ESP)\n"
                "     --no-variables  Don't touch EFI variables\n"
                "\n"
@@ -1265,11 +1269,13 @@ static bool arg_touch_variables = true;
 static int parse_argv(int argc, char *argv[]) {
         enum {
                 ARG_PATH = 0x100,
-                ARG_NO_VARIABLES
+                ARG_VERSION,
+                ARG_NO_VARIABLES,
         };
 
         static const struct option options[] = {
                 { "help",         no_argument,       NULL, 'h'              },
+                { "version",      no_argument,       NULL, ARG_VERSION      },
                 { "path",         required_argument, NULL, ARG_PATH         },
                 { "no-variables", no_argument,       NULL, ARG_NO_VARIABLES },
                 { NULL,           0,                 NULL, 0                }
@@ -1285,6 +1291,10 @@ static int parse_argv(int argc, char *argv[]) {
 
                 case 'h':
                         help();
+                        return 0;
+
+                case ARG_VERSION:
+                        printf(stringify(VERSION) "\n");
                         return 0;
 
                 case ARG_PATH:

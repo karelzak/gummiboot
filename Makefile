@@ -79,6 +79,7 @@ gummiboot: src/setup/setup.c src/setup/efivars.h src/setup/efivars.c Makefile
 	$(E) "  CCLD     " $@
 	$(Q) $(CC) -O0 -g -Wall -Wextra \
 	  -Wno-unused-parameter -D_GNU_SOURCE \
+	  -DVERSION=$(VERSION) \
 	  -DMACHINE_TYPE_NAME=\"$(MACHINE_TYPE_NAME)\" \
 	  src/setup/setup.c \
 	  src/setup/efivars.c \
