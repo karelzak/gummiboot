@@ -29,6 +29,10 @@
 #define _stringify(s) #s
 #define stringify(s) _stringify(s)
 
+#ifndef EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+#define EFI_OS_INDICATIONS_BOOT_TO_FW_UI 0x0000000000000001ULL
+#endif
+
 #ifndef EFI_SECURITY_VIOLATION
 #define EFI_SECURITY_VIOLATION      EFIERR(26)
 #endif
@@ -61,6 +65,7 @@ typedef struct {
         enum loader_type type;
         CHAR16 *loader;
         CHAR16 *options;
+        EFI_STATUS (*call)(void);
         BOOLEAN no_autoselect;
         BOOLEAN non_unique;
 } ConfigEntry;
@@ -187,15 +192,18 @@ static UINT64 time_usec(void) {
 static UINT64 time_usec(void) { return 0; }
 #endif
 
-static EFI_STATUS efivar_set(CHAR16 *name, CHAR16 *value, BOOLEAN persistent) {
+static EFI_STATUS efivar_set_raw(const EFI_GUID *vendor, CHAR16 *name, CHAR8 *buf, UINTN size, BOOLEAN persistent) {
         UINT32 flags;
 
         flags = EFI_VARIABLE_BOOTSERVICE_ACCESS|EFI_VARIABLE_RUNTIME_ACCESS;
         if (persistent)
                 flags |= EFI_VARIABLE_NON_VOLATILE;
 
-        return uefi_call_wrapper(RT->SetVariable, 5, name, &loader_guid, flags,
-                                 value ? (StrLen(value)+1) * sizeof(CHAR16) : 0, value);
+        return uefi_call_wrapper(RT->SetVariable, 5, name, vendor, flags, size, buf);
+}
+
+static EFI_STATUS efivar_set(CHAR16 *name, CHAR16 *value, BOOLEAN persistent) {
+        return efivar_set_raw(&loader_guid, name, (CHAR8 *)value, value ? (StrLen(value)+1) * sizeof(CHAR16) : 0, persistent);
 }
 
 static EFI_STATUS efivar_get_raw(const EFI_GUID *vendor, CHAR16 *name, CHAR8 **buffer, UINTN *size) {
@@ -1670,6 +1678,17 @@ static VOID config_title_generate(Config *config) {
         }
 }
 
+static BOOLEAN config_entry_add_call(Config *config, CHAR16 *title, EFI_STATUS (*call)(void)) {
+        ConfigEntry *entry;
+
+        entry = AllocateZeroPool(sizeof(ConfigEntry));
+        entry->title = StrDuplicate(title);
+        entry->call = call;
+        entry->no_autoselect = TRUE;
+        config_add_entry(config, entry);
+        return TRUE;
+}
+
 static BOOLEAN config_entry_add_loader(Config *config, EFI_HANDLE *device, EFI_FILE *root_dir, CHAR16 *loaded_image_path,
                                        CHAR16 *file, CHAR16 *title, CHAR16 *loader) {
         EFI_FILE_HANDLE handle;
@@ -1786,6 +1805,29 @@ out:
         return err;
 }
 
+static EFI_STATUS reboot_into_firmware(VOID) {
+        CHAR8 *b;
+        UINTN size;
+        UINT64 osind;
+        EFI_STATUS err;
+
+        osind = EFI_OS_INDICATIONS_BOOT_TO_FW_UI;
+
+        err = efivar_get_raw(&global_guid, L"OsIndications", &b, &size);
+        if (err == EFI_SUCCESS)
+                osind |= (UINT64)*b;
+        FreePool(b);
+
+        err = efivar_set_raw(&global_guid, L"OsIndications", (CHAR8 *)&osind, sizeof(UINT64), TRUE);
+        if (err != EFI_SUCCESS)
+                return err;
+
+        err = uefi_call_wrapper(RT->ResetSystem, 4, EfiResetCold, EFI_SUCCESS, 0, NULL);
+        Print(L"Error calling ResetSystem: %r", err);
+        uefi_call_wrapper(BS->Stall, 1, 3 * 1000 * 1000);
+        return err;
+}
+
 static VOID config_free(Config *config) {
         UINTN i;
 
@@ -1799,6 +1841,8 @@ static VOID config_free(Config *config) {
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         CHAR16 *s;
+        CHAR8 *b;
+        UINTN size;
         EFI_LOADED_IMAGE *loaded_image;
         EFI_FILE *root_dir;
         CHAR16 *loaded_image_path;
@@ -1882,6 +1926,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
         config_entry_add_osx(&config);
         efivar_set(L"LoaderEntriesAuto", config.entries_auto, FALSE);
 
+        if (efivar_get_raw(&global_guid, L"OsIndicationsSupported", &b, &size) == EFI_SUCCESS) {
+                UINT64 osind = (UINT64)*b;
+
+                if (osind & EFI_OS_INDICATIONS_BOOT_TO_FW_UI)
+                        config_entry_add_call(&config, L"Reboot Into Firmware Interface", reboot_into_firmware);
+                FreePool(b);
+        }
+
         config_title_generate(&config);
 
         /* select entry by configured pattern or EFI LoaderDefaultEntry= variable*/
@@ -1911,6 +1963,11 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *sys_table) {
                         uefi_call_wrapper(BS->SetWatchdogTimer, 4, 0, 0x10000, 0, NULL);
                         if (!menu_run(&config, &entry, loaded_image_path))
                                 break;
+
+                        if (entry->call) {
+                                entry->call();
+                                continue;
+                        }
                 }
 
                 /* export the selected boot entry to the system */
