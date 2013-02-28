@@ -8,7 +8,7 @@ parted --script test-disk "mklabel gpt" "mkpart ESP fat32 1M 64M" "set 1 boot on
 # create FAT32 file system
 LOOP=$(losetup --show -f -P test-disk)
 mkfs.vfat -F32 $LOOP
-mkdir mnt
+mkdir -p mnt
 mount $LOOP mnt
 
 # install gummiboot
@@ -26,6 +26,7 @@ echo -e "title Test3\nefi /test3\n" > mnt/loader/entries/test3.conf
 echo -e "title Test4\nefi /test4\n" > mnt/loader/entries/test4.conf
 echo -e "title Test5\nefi /test5\n" > mnt/loader/entries/test5.conf
 
+sync
 umount mnt
 rmdir mnt
 losetup -d $LOOP

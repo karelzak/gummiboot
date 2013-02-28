@@ -43,6 +43,8 @@ static const char __attribute__((used)) magic[] = "#### LoaderInfo: gummiboot " 
  */
 static const EFI_GUID loader_guid = { 0x4a67b082, 0x0a4c, 0x41cf, {0xb6, 0xc7, 0x44, 0x0b, 0x29, 0xbb, 0x8c, 0x4f} };
 
+static const EFI_GUID global_guid = EFI_GLOBAL_VARIABLE;
+
 enum loader_type {
         LOADER_UNDEFINED,
         LOADER_EFI,
@@ -196,23 +198,45 @@ static EFI_STATUS efivar_set(CHAR16 *name, CHAR16 *value, BOOLEAN persistent) {
                                  value ? (StrLen(value)+1) * sizeof(CHAR16) : 0, value);
 }
 
+static EFI_STATUS efivar_get_raw(const EFI_GUID *vendor, CHAR16 *name, CHAR8 **buffer, UINTN *size) {
+        CHAR8 *buf;
+        UINTN l;
+        EFI_STATUS err;
+
+        l = sizeof(CHAR16 *) * EFI_MAXIMUM_VARIABLE_SIZE;
+        buf = AllocatePool(l);
+        if (!buf)
+                return EFI_OUT_OF_RESOURCES;
+
+        err = uefi_call_wrapper(RT->GetVariable, 5, name, vendor, NULL, &l, buf);
+        if (EFI_ERROR(err) == EFI_SUCCESS) {
+                *buffer = buf;
+                if (size)
+                        *size = l;
+        } else
+                FreePool(buf);
+        return err;
+
+}
+
 static EFI_STATUS efivar_get(CHAR16 *name, CHAR16 **value) {
+        CHAR8 *buf;
         CHAR16 *val;
         UINTN size;
         EFI_STATUS err;
 
-        size = sizeof(CHAR16 *) * EFI_MAXIMUM_VARIABLE_SIZE;
-        val = AllocatePool(size);
-        if (!val)
-                return EFI_OUT_OF_RESOURCES;
+        err = efivar_get_raw(&loader_guid, name, &buf, &size);
+        if (EFI_ERROR(err) != EFI_SUCCESS)
+                return err;
 
-        err = uefi_call_wrapper(RT->GetVariable, 5, name, &loader_guid, NULL, &size, val);
-        if (EFI_ERROR(err) == EFI_SUCCESS)
-                *value = val;
-        else
+        val = StrDuplicate((CHAR16 *)buf);
+        if (!val) {
                 FreePool(val);
-        return err;
+                return EFI_OUT_OF_RESOURCES;
+        }
 
+        *value = val;
+        return EFI_SUCCESS;
 }
 
 static EFI_STATUS efivar_set_int(CHAR16 *name, UINTN i, BOOLEAN persistent) {
@@ -430,6 +454,8 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         UINTN index;
         UINTN i;
         CHAR16 *s;
+        CHAR8 *b;
+        UINTN size;
 
         uefi_call_wrapper(ST->ConOut->SetAttribute, 2, ST->ConOut, EFI_LIGHTGRAY|EFI_BACKGROUND_BLACK);
         uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -439,6 +465,19 @@ static VOID dump_status(Config *config, CHAR16 *loaded_image_path) {
         Print(L"UEFI version:           %d.%02d\n", ST->Hdr.Revision >> 16, ST->Hdr.Revision & 0xffff);
         Print(L"firmware vendor:        %s\n", ST->FirmwareVendor);
         Print(L"firmware version:       %d.%02d\n", ST->FirmwareRevision >> 16, ST->FirmwareRevision & 0xffff);
+        if (efivar_get_raw(&global_guid, L"SecureBoot", &b, &size) == EFI_SUCCESS) {
+                Print(L"SecureBoot:             %s\n", *b > 0 ? L"enabled" : L"disabled");
+                FreePool(b);
+
+                if (efivar_get_raw(&global_guid, L"SetupMode", &b, &size) == EFI_SUCCESS) {
+                        Print(L"SetupMode:              %s\n", *b > 0 ? L"enabled" : L"disabled");
+                        FreePool(b);
+                }
+        }
+        if (efivar_get_raw(&global_guid, L"OsIndicationsSupported", &b, &size) == EFI_SUCCESS) {
+                Print(L"OsIndicationsSupported: %d\n", (UINT64)*b);
+                FreePool(b);
+        }
         Print(L"\n");
 
         Print(L"timeout:                %d\n", config->timeout_sec);
