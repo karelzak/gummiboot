@@ -32,10 +32,10 @@ CLEANFILES =
 # gummiboot setup binary
 #
 bin_PROGRAMS = gummiboot
-dist_man_MANS = src/setup/gummiboot.1
+dist_man_MANS = src/setup/gummiboot.8
 
 EXTRA_DIST += src/setup/gummiboot.xml
-CLEANFILES += src/setup/gummiboot.1
+CLEANFILES += src/setup/gummiboot.8
 
 gummiboot_SOURCES = \
 	src/setup/setup.c \
@@ -51,7 +51,7 @@ gummiboot_CFLAGS = \
 gummiboot_LDADD = \
 	$(BLKID_LIBS)
 
-%.1: %.xml
+%.8: %.xml
 	$(AM_V_GEN)xsltproc -o $@ --nonet \
 	  --stringparam man.output.quietly 1 \
 	  --stringparam man.th.extra1.suppress 1 \
